@@ -1,0 +1,9 @@
+/node_modules/
+/package-lock.json
+/hfc-key-store/
+/
+!/supplyChainNetwork/
+chaincode/lib/fabcar.js
+server/package-lock.json
+./identity/wallet
+./server/identity
