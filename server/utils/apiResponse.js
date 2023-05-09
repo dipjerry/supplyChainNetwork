@@ -3,6 +3,8 @@ exports.createModelRes = (status, message, data = {}) => {
 };
 
 exports.send = (res, modelRes) => {
+    console.log('modelRes');
+    console.log(modelRes);
     return res.status(modelRes.status).json({
         message: modelRes.message,
         data: modelRes.data,

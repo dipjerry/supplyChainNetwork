@@ -55,55 +55,117 @@ class SupplyChain extends Contract {
         return timestamp;
     }
 
-    async createInvoice(ctx, product , to , from , price) {
-        if (!product) {
-            return { error: 'Name must be provided to create a product' };
+    // async createInvoice(ctx, product , to , from , price) {
+    //     if (!product) {
+    //         return { error: 'Name must be provided to create a product' };
+    //     }
+    //     if (!to) {
+    //         return { error: 'Name must be provided to create a product' };
+    //     }
+    //     if (!from) {
+    //         return { error: 'Manufacturer_ID must be provided' };
+    //     }
+    //     if (!price) {
+    //         return { error: 'Price must be non-empty' };
+    //     }
+    //     // get user details from the stub ie. Chaincode stub in network using the user id passed
+    //     const toBytes = await ctx.stub.getState(to);
+    //     if (!toBytes || toBytes.length === 0 ) {
+    //         return { error: 'Cannot Find reciptent' };
+    //     }
+    //     const fromBytes = await ctx.stub.getState(from);
+    //     if (!fromBytes || fromBytes.length === 0) {
+    //         return { error: 'Cannot Find User' };
+    //     }
+
+    //     //Price conversion - Error handeling
+    //     const i1 = parseFloat(price);
+    //     if (isNaN(i1)) {
+    //         return { error: 'Failed to Convert Price' };
+    //     }
+    //     const invoiceCounter = await this.getCounter(ctx, 'InvoiceCounterNO');
+    //     const newInvoiceID = `Invoice${invoiceCounter + 1}`;
+    //     //To Get the transaction TimeStamp from the Channel Header
+    //     const time = await this.getCurrentBlockTimestamp(ctx);
+    //     // DATES
+    //     const dates = { invoice_date: { time } };
+    //     const invoice = {
+    //         invoiceNumber: newInvoiceID,
+    //         invoiceDate: dates,
+    //         amount: price,
+    //         sender: from,
+    //         recipient: to,
+    //         status: 'created',
+    //     };
+    //     const newInvoiceBytes = Buffer.from(JSON.stringify(invoice));
+    //     await ctx.stub.putState(newInvoiceID, newInvoiceBytes);
+    //     //TO Increment the Product Counter
+    //     await this.incrementCounter(ctx, 'InvoiceCounterNO');
+    //     console.log(`Success in creating Invoice Asset ${newInvoiceID}`);
+    //     return newInvoiceID;
+    // }
+
+    async createInvoice(ctx, products, to, from) {
+        if (!products || products.length === 0) {
+            return { error: 'At least one product must be provided to create an invoice' };
         }
         if (!to) {
-            return { error: 'Name must be provided to create a product' };
+            return { error: 'Name must be provided for the recipient' };
         }
         if (!from) {
-            return { error: 'Manufacturer_ID must be provided' };
+            return { error: 'Manufacturer ID must be provided for the sender' };
         }
-        if (!price) {
-            return { error: 'Price must be non-empty' };
-        }
-        // get user details from the stub ie. Chaincode stub in network using the user id passed
+        // Check if recipient and sender exist
         const toBytes = await ctx.stub.getState(to);
-        if (!toBytes || toBytes.length === 0 ) {
-            return { error: 'Cannot Find reciptent' };
+        if (!toBytes || toBytes.length === 0) {
+            return { error: 'Cannot find recipient' };
         }
         const fromBytes = await ctx.stub.getState(from);
         if (!fromBytes || fromBytes.length === 0) {
-            return { error: 'Cannot Find User' };
+            return { error: 'Cannot find sender' };
         }
-
-        //Price conversion - Error handeling
-        const i1 = parseFloat(price);
-        if (isNaN(i1)) {
-            return { error: 'Failed to Convert Price' };
+        // Calculate total price
+        let totalPrice = 0;
+        const productsWithPrice = [];
+        for (const product of products) {
+            if (!product.name || !product.quantity || !product.price) {
+                return { error: 'Each product must have a name, quantity, and price' };
+            }
+            const price = parseFloat(product.price);
+            const quantity = parseInt(product.quantity);
+            if (isNaN(price) || isNaN(quantity)) {
+                return { error: 'Price and quantity must be valid numbers' };
+            }
+            totalPrice += price * quantity;
+            productsWithPrice.push({
+                name: product.name,
+                quantity: quantity,
+                price: price
+            });
         }
         const invoiceCounter = await this.getCounter(ctx, 'InvoiceCounterNO');
         const newInvoiceID = `Invoice${invoiceCounter + 1}`;
-        //To Get the transaction TimeStamp from the Channel Header
+        // Get the transaction timestamp from the channel header
         const time = await this.getCurrentBlockTimestamp(ctx);
-        // DATES
+        // Create invoice object
         const dates = { invoice_date: { time } };
         const invoice = {
             invoiceNumber: newInvoiceID,
             invoiceDate: dates,
-            amount: price,
+            products: productsWithPrice,
+            totalPrice: totalPrice.toFixed(2),
             sender: from,
             recipient: to,
             status: 'created',
         };
         const newInvoiceBytes = Buffer.from(JSON.stringify(invoice));
         await ctx.stub.putState(newInvoiceID, newInvoiceBytes);
-        //TO Increment the Product Counter
+        // Increment the invoice counter
         await this.incrementCounter(ctx, 'InvoiceCounterNO');
         console.log(`Success in creating Invoice Asset ${newInvoiceID}`);
         return newInvoiceID;
     }
+
 
     // user creation and authentication
 
@@ -135,19 +197,19 @@ class SupplyChain extends Contract {
         return { success: user };
     }
 
-    async createUser(ctx, name, userID, email, userType, address, password) {
+    async createUser(ctx, name, email, userType, address, password) {
         console.info('createUser has been invoked');
-        const userCounterBytes = await ctx.stub.getState('UserCounterNO');
-        const userCounter = JSON.parse(userCounterBytes.toString());
+        const userCounter = await this.getCounter(ctx, 'UserCounterNO');
+        const newUserID = `User${userCounter + 1}`;
         const user = {
             Name: name,
-            User_ID: userID,
+            User_ID: newUserID,
             Email: email,
             User_Type: userType,
             Address: address,
             Password: password,
             aadhar:{
-                if:'',
+                id:'',
                 verified:false
             },
             pan:{
@@ -161,10 +223,8 @@ class SupplyChain extends Contract {
             },
             code:''
         };
-        // const userKey = 'USER' + userCounter.Counter;
-        await ctx.stub.putState(userID, Buffer.from(JSON.stringify(user)));
-        userCounter.Counter += 1;
-        await ctx.stub.putState('UserCounterNO', Buffer.from(JSON.stringify(userCounter)));
+        await ctx.stub.putState(newUserID, Buffer.from(JSON.stringify(user)));
+        await this.incrementCounter(ctx, 'UserCounterNO');
         console.info('createUser execution is completed');
         return JSON.stringify(user);
     }
@@ -704,7 +764,10 @@ class SupplyChain extends Contract {
                     console.log(err);
                     Record = res.value.value.toString('utf8');
                 }
-                if (Record[recordElement] === recordValue) {
+                console.log(Record);
+                console.log(Record[recordElement]);
+                console.log(Record[recordElement].id);
+                if (Record[recordElement].id === recordValue) {
                     buffer.push({ Key, Record });
                 }
             }

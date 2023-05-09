@@ -73,7 +73,6 @@ exports.getProductbyId = async (req, res) => {
 exports.getAllProducts = async (req, res) => {
 
     console.log(req.params);
-    // const { id } = req.body;
     const { role , id } = req.query;
 
     console.log('1');
@@ -92,6 +91,29 @@ exports.getAllProducts = async (req, res) => {
         modelRes = await productModel.getAllProducts(false, false, true, { id });
     } else if( role === 'admin' ) {
         modelRes = await productModel.getAllProducts(true, false, false, { id });
+    }
+    else {
+        return apiResponse.badRequest(res);
+    }
+    return apiResponse.send(res, modelRes);
+};
+
+exports.getProductsByRole = async (req, res) => {
+
+    console.log("req.params");
+    console.log(req.params);
+    const { key ,role , id } = req.query;
+
+    if (!id || !role || !key) {
+        return apiResponse.badRequest(res);
+    }
+    let modelRes;
+    if( role === 'manufacturer' ) {
+        modelRes = await productModel.getAllProducts(true, false, false, { id , key});
+    } else if( role === 'middlemen' ) {
+        modelRes = await productModel.getAllProducts(false, true, false,{ id , key });
+    } else if( role === 'consumer' ) {
+        modelRes = await productModel.getAllProducts(false, false, true, { id , key});
     }
     else {
         return apiResponse.badRequest(res);

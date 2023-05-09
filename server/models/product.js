@@ -62,10 +62,21 @@ exports.getAllProducts = async ( isManufacturer, isMiddlemen, isConsumer ,inform
     return apiResponse.createModelRes(200, 'Success', contractRes);
 };
 
-exports.getProductByRole = async ( isManufacturer, isMiddlemen, isConsumer ,information )=> {
+exports.getProductByOwner = async ( isManufacturer, isMiddlemen, isConsumer ,information )=> {
     const { id } = information;
     const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
     const contractRes = await network.invoke(networkObj, 'getProductByOwner', 'ownerId');
+    const error = networkObj.error || contractRes.error;
+    if (error) {
+        const status = networkObj.status || contractRes.status;
+        return apiResponse.createModelRes(status, error);
+    }
+    return apiResponse.createModelRes(200, 'Success', contractRes);
+};
+exports.getProductByRole = async ( isManufacturer, isMiddlemen, isConsumer ,information )=> {
+    const { key ,   id } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    const contractRes = await network.invoke(networkObj, 'querybyFilter','Product', key , id );
     const error = networkObj.error || contractRes.error;
     if (error) {
         const status = networkObj.status || contractRes.status;

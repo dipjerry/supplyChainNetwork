@@ -20,14 +20,14 @@ async function main() {
     // await network.enrollAdmin(true, false, false);
     // await network.enrollAdmin(false,true,false);
     // await network.enrollAdmin(false,false,true);
-    // await user.signup(true, false, false , {id:'0001', userType:'admin', address:'HQ', name:'supplychain management', email:'admin@gmail.com', password:'1234' });
+    // await user.signup(true, false, false , {userType:'admin', address:'HQ', name:'supplychain management', email:'admin@gmail.com', password:'1234' , id:'admin' });
 
     const app = express();
     app.use(morgan('combined'));
     app.use(bodyParser.json());
     app.use(cors(
         {
-            origin: 'http://127.0.0.1:5173',
+            origin: 'http://localhost:5173',
             methods: 'GET,POST,PUT,DELETE',
             credentials: true,
         }
