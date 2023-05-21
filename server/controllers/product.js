@@ -20,6 +20,27 @@ exports.createProduct = async (req, res) => {
     return apiResponse.send(res, modelRes);
 };
 
+
+
+exports.createRawProduct = async (req, res) => {
+    const { id, name, price , loggedUserType , quantity , image , description } = req.body;
+    console.log('1');
+
+    if (!name || !id || !price || !quantity  || !loggedUserType || !image || !description) {
+        return apiResponse.badRequest(res);
+    }
+    console.log('2');
+    console.log(req.body);
+
+    // if (loggedUserType !== 'manufacturer' ) {
+    //     return apiResponse.badRequest(res);
+    // }
+    // console.log('3');
+
+    const modelRes = await productModel.createRawProduct({ id, name, price ,  quantity , image , description });
+    return apiResponse.send(res, modelRes);
+};
+
 exports.updateProduct = async (req, res) => {
     const { id, name, price , loggedUserType } = req.body;
     const { role, productId } = req.params;
@@ -98,10 +119,28 @@ exports.getAllProducts = async (req, res) => {
     return apiResponse.send(res, modelRes);
 };
 
-exports.getProductsByRole = async (req, res) => {
-
-    console.log("req.params");
+exports.getAllRawProducts = async (req, res) => {
     console.log(req.params);
+    const { role , id } = req.query;
+    console.log('1');
+    if (!id || !role ) {
+        return apiResponse.badRequest(res);
+    }
+    console.log('2');
+    console.log('3');
+    let modelRes;
+    if( role === 'manufacturer' ) {
+        modelRes = await productModel.getAllRawProducts({ id });
+    }
+    else {
+        return apiResponse.badRequest(res);
+    }
+    return apiResponse.send(res, modelRes);
+};
+
+exports.getProductsByRole = async (req, res) => {
+    console.log("req.params");
+    console.log(req.query);
     const { key ,role , id } = req.query;
 
     if (!id || !role || !key) {
@@ -109,11 +148,33 @@ exports.getProductsByRole = async (req, res) => {
     }
     let modelRes;
     if( role === 'manufacturer' ) {
-        modelRes = await productModel.getAllProducts(true, false, false, { id , key});
-    } else if( role === 'middlemen' ) {
-        modelRes = await productModel.getAllProducts(false, true, false,{ id , key });
+        modelRes = await productModel.getProductByRole(true, false, false, { id , key});
+    } else if( role === 'exporter' ||  role === 'importer' || role === 'middlemen'  ) {
+        modelRes = await productModel.getProductByRole(false, true, false,{ id , key });
     } else if( role === 'consumer' ) {
-        modelRes = await productModel.getAllProducts(false, false, true, { id , key});
+        modelRes = await productModel.getProductByRole(false, false, true, { id , key});
+    }
+    else {
+        return apiResponse.badRequest(res);
+    }
+    return apiResponse.send(res, modelRes);
+};
+
+exports.getshopProduct = async (req, res) => {
+    console.log('req.params');
+    console.log(req.query);
+    const {role , id , userType } = req.query;
+    if (!id || !role || !userType) {
+        return apiResponse.badRequest(res);
+    }
+    console.log("Here is the role" + role);
+    let modelRes;
+    if( role === 'manufacturer' ) {
+        modelRes = await productModel.getShopProduct(true, false, false, { id , userType});
+    } else if( role === 'middlemen' ) {
+        modelRes = await productModel.getShopProduct(false, true, false,{ id , userType});
+    } else if( role === 'consumer' ) {
+        modelRes = await productModel.getShopProduct(false, false, true, { id , userType});
     }
     else {
         return apiResponse.badRequest(res);

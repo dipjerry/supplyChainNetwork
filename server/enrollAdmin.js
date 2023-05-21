@@ -1,7 +1,7 @@
 /*
  * Copyright IBM Corp. All Rights Reserved.
  *
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-License-Identifier: Apache-1.0
  */
 
 'use strict';

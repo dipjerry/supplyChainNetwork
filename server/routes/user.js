@@ -13,6 +13,7 @@ const roleMiddleware = require('../middlewares/checkRole.js');
 authRouter.post('/signup',upload.any(), controller.signup);
 authRouter.get('/all', controller.getAllUser);
 authRouter.post('/signin/:role', controller.signin);
+authRouter.get('/inventory', controller.inventory);
 // authRouter.get('/user/:role/userId/:userId', controller.getUser);
 
 module.exports = authRouter;

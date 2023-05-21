@@ -1,43 +1,85 @@
 const authModel = require('../models/user.js');
 const apiResponse = require('../utils/apiResponse.js');
+const ipfs = require('../script/addToIpfs.js');
 
 exports.signup = async (req, res) => {
     const { id, userType, address, name, email, password} = req.body;
     // const { role } = req.params;
-    // const { file } = req.files;
+    const { file } = req.files;
     let role;
-    console.log(req.body);
-    console.log(req.files);
-    // console.log(role);
-    // console.log(file);
 
     if ((!id || !userType || !address || !name  || !email || !password)) {
         console.log('1');
         return apiResponse.badRequest(res);
     }
+    const profilePic = await ipfs.addToIpfs(req.files[0].buffer);
+    console.log('profilePic');
+    console.log(profilePic);
 
-    if(userType === 'Farmer'){
+    if(userType === 'manufacturer'){
         role = 'manufacturer';
     }
-    else if(userType === 'Importer' || userType === 'Exporter' ||
-      userType === 'Logistic' || userType === 'Retailer'){
-        role = 'middleman';
+    else if(userType === 'importer' || userType === 'exporter' ||
+      userType === 'logistic' || userType === 'retailer'){
+        role = 'middlemen';
     }
     else if(userType === 'customer'){
-        role = 'cunsumer';
+        role = 'consumer';
     }
     else{
         role = 'admin';
     }
 
     let modelRes;
-
+    console.log(role);
+    console.log("role");
+    console.log(role);
     if (role === 'manufacturer') {
-        modelRes = await authModel.signup(true, false, false, {  id, userType, address, email, name,  password });
+        modelRes = await authModel.signup(true, false, false, {  id, userType, address, email, name, profilePic, password });
     } else if (role === 'middlemen') {
-        modelRes = await authModel.signup(false, true, false, {  id, userType, address, name, email, password });
+        modelRes = await authModel.signup(false, true, false, {  id, userType, address, name, email, profilePic,password });
     } else if (role === 'consumer') {
-        modelRes = await authModel.signup(false, false, true, {  id, userType, address, name, email, password  });
+        modelRes = await authModel.signup(false, false, true, {  id, userType, address, name, email, profilePic,password  });
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
+    return apiResponse.send(res, modelRes);
+};
+
+exports.inventory = async (req, res) => {
+    // const { id, userType} = req.body;
+    const { id, userType } = req.query;
+    let role;
+
+    if ((!id || !userType)) {
+        console.log('1');
+        return apiResponse.badRequest(res);
+    }
+
+
+    if(userType === 'manufacturer'){
+        role = 'manufacturer';
+    }
+    else if(userType === 'importer' || userType === 'exporter' ||
+      userType === 'logistic' || userType === 'retailer'){
+        role = 'middlemen';
+    }
+    else if(userType === 'customer'){
+        role = 'consumer';
+    }
+    else{
+        role = 'admin';
+    }
+
+    let modelRes;
+    console.log(role);
+    if (role === 'manufacturer') {
+        modelRes = await authModel.inventory(true, false, false, {  id});
+    } else if (role === 'middlemen') {
+        modelRes = await authModel.inventory(false, true, false, {  id});
+    } else if (role === 'consumer') {
+        modelRes = await authModel.inventory(false, false, true, {  id});
     } else {
         return apiResponse.badRequest(res);
     }
