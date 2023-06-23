@@ -149,7 +149,7 @@ exports.getProductsByRole = async (req, res) => {
     let modelRes;
     if( role === 'manufacturer' ) {
         modelRes = await productModel.getProductByRole(true, false, false, { id , key});
-    } else if( role === 'exporter' ||  role === 'importer' || role === 'middlemen'  ) {
+    } else if( role === 'exporter' ||  role === 'importer' || role === 'logistic'  ) {
         modelRes = await productModel.getProductByRole(false, true, false,{ id , key });
     } else if( role === 'consumer' ) {
         modelRes = await productModel.getProductByRole(false, false, true, { id , key});

@@ -18,6 +18,7 @@
     "author": "Hyperledger",
     "license": "Apache-2.0",
     "dependencies": {
+        "@hyperledger/caliper-cli": "^0.3.2",
         "body-parser": "^1.20.2",
         "cookie-session": "^2.0.0",
         "cors": "^2.8.5",

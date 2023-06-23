@@ -47,6 +47,7 @@ exports.signup = async (req, res) => {
     return apiResponse.send(res, modelRes);
 };
 
+
 exports.inventory = async (req, res) => {
     // const { id, userType} = req.body;
     const { id, userType } = req.query;
@@ -80,6 +81,89 @@ exports.inventory = async (req, res) => {
         modelRes = await authModel.inventory(false, true, false, {  id});
     } else if (role === 'consumer') {
         modelRes = await authModel.inventory(false, false, true, {  id});
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
+    return apiResponse.send(res, modelRes);
+};
+
+exports.userByType = async (req, res) => {
+    console.log(req.query);
+    // const { id, userType} = req.body;
+    const { id, userType , type } = req.query;
+    let role;
+
+    if ((!id || !userType)) {
+        console.log('1');
+        return apiResponse.badRequest(res);
+    }
+
+
+    if(userType === 'manufacturer'){
+        role = 'manufacturer';
+    }
+    else if(userType === 'importer' || userType === 'exporter' ||
+      userType === 'logistic' || userType === 'retailer'){
+        role = 'middlemen';
+    }
+    else if(userType === 'customer'){
+        role = 'consumer';
+    }
+    else{
+        role = 'admin';
+    }
+
+    let modelRes;
+    console.log(role);
+    if (role === 'manufacturer' || role === 'admin') {
+        modelRes = await authModel.userByType(true, false, false, {  id , type });
+    } else if (role === 'middlemen') {
+        modelRes = await authModel.userByType(false, true, false, {  id , type });
+    } else if (role === 'consumer') {
+        modelRes = await authModel.userByType(false, false, true, {  id , type });
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
+    return apiResponse.send(res, modelRes);
+};
+
+exports.userById = async (req, res) => {
+    console.log('req.query');
+    console.log(req.query);
+    // const { id, userType} = req.body;
+    const { id, userType} = req.query;
+    let role;
+
+    if ((!id || !userType)) {
+        console.log('1');
+        return apiResponse.badRequest(res);
+    }
+
+
+    if(userType === 'manufacturer'){
+        role = 'manufacturer';
+    }
+    else if(userType === 'importer' || userType === 'exporter' ||
+      userType === 'logistic' || userType === 'retailer'){
+        role = 'middlemen';
+    }
+    else if(userType === 'customer'){
+        role = 'consumer';
+    }
+    else{
+        role = 'admin';
+    }
+
+    let modelRes;
+    console.log(role);
+    if (role === 'manufacturer' || role === 'admin') {
+        modelRes = await authModel.userById(true, false, false, {  id });
+    } else if (role === 'middlemen') {
+        modelRes = await authModel.userById(false, true, false, {  id });
+    } else if (role === 'consumer') {
+        modelRes = await authModel.userById(false, false, true, {  id });
     } else {
         return apiResponse.badRequest(res);
     }
@@ -128,5 +212,44 @@ exports.getAllUser = async (req, res) => {
     else {
         return apiResponse.badRequest(res);
     }
+    return apiResponse.send(res, modelRes);
+};
+
+exports.verify_and_add_aadhar = async (req, res) => {
+    const { id, userType, aadhar} = req.body;
+    // const { role } = req.params;
+    let modelRes;
+    if (userType === 'manufacturer') {
+        modelRes = await authModel.verify_and_add_aadhar(true, false, false, {  id, userType, aadhar });
+    } else if (userType === 'importer' || userType === 'exporter' ||
+    userType === 'logistic' || userType === 'retailer') {
+        modelRes = await authModel.verify_and_add_aadhar(false, true, false, {  id, userType, aadhar });
+    } else if (userType === 'consumer') {
+        modelRes = await authModel.verify_and_add_aadhar(false, false, true, {  id, userType, aadhar });
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
+    return apiResponse.send(res, modelRes);
+};
+exports.verify_and_add_pan = async (req, res) => {
+    const { id, userType, pan} = req.body;
+    if ((!id || !userType || !pan)) {
+        console.log('1');
+        return apiResponse.badRequest(res);
+    }
+
+    let modelRes;
+    if (userType === 'manufacturer') {
+        modelRes = await authModel.verify_and_add_aadhar(true, false, false, {  id, userType, pan });
+    } else if (userType === 'importer' || userType === 'exporter' ||
+    userType === 'logistic' || userType === 'retailer') {
+        modelRes = await authModel.verify_and_add_aadhar(false, true, false, {  id, userType, pan });
+    } else if (userType === 'consumer') {
+        modelRes = await authModel.verify_and_add_aadhar(false, false, true, {  id, userType, pan });
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
     return apiResponse.send(res, modelRes);
 };

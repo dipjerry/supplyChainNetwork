@@ -1,4 +1,5 @@
 'use strict';
+// const e = require('express');
 const { Contract } = require('fabric-contract-api');
 class SupplyChain extends Contract {
     async initLedger(ctx) {
@@ -50,8 +51,9 @@ class SupplyChain extends Contract {
         return counterAsset.Counter;
     }
     async getCurrentBlockTimestamp(ctx) {
-        const timestamp = ctx.stub.getTxTimestamp().getSeconds();
-        return timestamp;
+        const currentDate = new Date();
+        const currentSeconds = Math.floor(currentDate.getTime() / 1000);
+        return currentSeconds;
     }
     async checkProperties(obj) {
         console.log('obj');
@@ -63,6 +65,9 @@ class SupplyChain extends Contract {
         }
         return;
     }
+
+
+    // helper
     async createInvoice(ctx, products, to, from) {
         if (!products || products.length === 0) {
             return { error: 'At least one product must be provided to create an invoice' };
@@ -170,22 +175,18 @@ class SupplyChain extends Contract {
         // Create invoice for each seller
         console.log('seller');
         console.log(sellers);
+        let invoiceCounter = await this.getCounter(ctx, 'InvoiceCounterNO');
         for (const sellerId in sellers) {
-            let invoiceCounter = await this.getCounter(ctx, 'InvoiceCounterNO');
+            let newInvoiceID = `Invoice${invoiceCounter + 1}`;
             console.log('sellerId');
             console.log(sellerId);
+            console.log('invoice Counter');
+            console.log(invoiceCounter);
+            console.log("newInvoiceID");
+            console.log(newInvoiceID);
             const seller = sellers[sellerId];
             console.log('seller');
             console.log(seller);
-            // const totalPrice = await seller.products.reduce(async(total, p) => {
-            //     console.log('total');
-            //     console.log(total);
-            //     console.log("p");
-            //     console.log(p);
-            //     let productBytes = await ctx.stub.getState(p.id);
-            //     let productObj = JSON.parse(productBytes.toString());
-            //     return await total + (productObj.product.price * p.quantity);
-            // }, 0);
             const products = seller.products;
             let totalPrice = 0;
             for (const p of products) {
@@ -197,7 +198,6 @@ class SupplyChain extends Contract {
                 console.log(productObj);
                 totalPrice += productObj.product.price * p.quantity;
             }
-            const newInvoiceID = `Invoice${invoiceCounter + 1}`;
             console.log('totalPrice');
             console.log(totalPrice);
             const invoice = {
@@ -205,25 +205,27 @@ class SupplyChain extends Contract {
                 invoiceDate,
                 products: seller.products,
                 totalPrice: totalPrice.toFixed(2),
-                sender: from,
-                recipient: sellerId,
+                sender: sellerId,
+                recipient: from,
                 status: 'created',
-                sellerId
             };
             const newInvoiceBytes = Buffer.from(JSON.stringify(invoice));
             await ctx.stub.putState(newInvoiceID, newInvoiceBytes);
+            console.log("IT got here");
             invoices.push({
                 sellerId,
                 productId: seller.products.map(p => p.id),
                 invoiceNumber: newInvoiceID
             });
             invoiceCounter++;
+            console.log("🚀 ~ file: supplychain.js:216 ~ SupplyChain ~ createInvoiceRawMaterial ~ newInvoiceID:", newInvoiceID)
             await this.incrementCounter(ctx, 'InvoiceCounterNO');
         }
         // Increment the invoice counter
         console.log('Success in creating Invoice Assets');
         return invoices;
     }
+    //user registration
     async signIn(ctx, userId , password) {
         if (!userId) {
             return { error: 'User ID must be provided' };
@@ -250,6 +252,7 @@ class SupplyChain extends Contract {
         };
         return { success: user };
     }
+
     async createUser(ctx, name, email, userType, address, password , profilePic) {
         const errors = this.checkProperties({
             name, email, userType, address, password , profilePic
@@ -267,8 +270,15 @@ class SupplyChain extends Contract {
             Name: name,
             User_ID: newUserID,
             Email: email,
+            Mobile: '',
             User_Type: userType,
-            Address: address,
+            Address: {
+                address:address,
+                pin:'',
+                city:'',
+                state:'',
+                country:''
+            },
             Password: password,
             profilePic: profilePic,
             aadhar:{
@@ -293,114 +303,96 @@ class SupplyChain extends Contract {
         console.info('createUser execution is completed');
         return JSON.stringify(user);
     }
-    async createProduct(ctx, name , mid , price , quantity) {
-        const errors = this.checkProperties({
-            name , mid , price , quantity
-        });
-        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
-            console.log(`createUser has been invoked with errors: ${JSON.stringify(errors)}`);
-            return errors;
+
+    async updateAadhar(ctx, aadhar , uid ) {
+        // parameter null check
+        if (!aadhar) {
+            return { error: 'Aadhar no must be provided' };
         }
-        const userBytes = await ctx.stub.getState(mid);
+        if (!uid) {
+            return { error: 'User Id must be provided' };
+        }
+        // get user details from the stub ie. Chaincode stub in network using the user id passed
+        let userBytes = await ctx.stub.getState(uid);
         if (!userBytes || userBytes.length === 0) {
             return { error: 'Cannot Find User' };
         }
-        const user = JSON.parse(userBytes.toString());
-        if (user.User_Type !== 'manufacturer') {
-            return { error: 'User type must be manufacturer' };
+        let user = JSON.parse(userBytes.toString());
+        // User type check for the function
+        user.aadhar.id = aadhar; // product value from UI for the update
+        user.aadhar.verified = true; // product value from UI for the update
+        let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
+        try {
+            await ctx.stub.putState(user.id, updatedUserAsBytes);
+        } catch (err) {
+            return { error: `Failed to Update aadhar for user : ${user.id}` };
         }
-        const i1 = parseFloat(price);
-        if (isNaN(i1)) {
-            return { error: 'Failed to Convert Price' };
-        }
-        const productCounter = await this.getCounter(ctx, 'ProductCounterNO');
-        const newProductID = `Product${productCounter + 1}`;
-        const time = await this.getCurrentBlockTimestamp(ctx);
-        console.log('time');
-        console.log(time);
-        const dates =  time;
-        const invoice = await this.createInvoice(ctx, 'Raw Material' , mid , 'User1' , price);
-        const newProduct = {
-            id: newProductID,
-            name: name,
-            status: 'Processing',
-            product: {
-                type: '',
-                origin: '',
-                owner: mid,
-                quantity: quantity,
-                price: '',
-                production_date: dates,
-                expiration_date: '',
-                availablefor: 'exporter',
-            },
-            producer: {
-                id: mid,
-                production_data: {
-                    climate: '',
-                    soil_type: ''
-                },
-                status: 'Processing',
-            },
-            exporter: {
-                id: '',
-                export_data: {
-                    shipping_method: '',
-                    export_date: ''
-                },
-                status: 'Not Available'
-            },
-            inspector: {
-                id: '',
-                inspection_data: {
-                    quality_grade: '',
-                    inspection_date: ''
-                },
-                status: 'Not Available'
-            },
-            importer: {
-                id: '',
-                import_data: {
-                    import_order_id: '',
-                    import_date: ''
-                },
-                status: 'Not Available'
-            },
-            logistics: {
-                id: '',
-                logistics_data: {
-                    transport_method: '',
-                    tracking_id: '',
-                    delivery_date: ''
-                },
-                status: 'Not Available'
-            },
-            payment: {
-                raw_product_amount: i1,
-                producer_amount: 0,
-                inspector_amount: 0,
-                exporter_amount: 0,
-                logistics_amount: 0,
-                importer_amount: 0,
-                retail_amount: 0,
-                total_amount: 0,
-            },
-            invoice: {
-                producer_invoice: invoice, //producer buy raw material
-                exporter_invoice: '', // exporter buy from producer invoice
-                logistics_invoice: '', // transport and other invocie
-                importer_invoice: '',  // importer buy from importer invoice
-                retail_invoice: '', // retailer buy from importer invoice
-                customer_invoice: '', // customer buy from retailer invoice
-            },
-        };
-        const newProductBytes = Buffer.from(JSON.stringify(newProduct));
-        await ctx.stub.putState(newProductID, newProductBytes);
-        //TO Increment the Product Counter
-        await this.incrementCounter(ctx, 'ProductCounterNO');
-        console.log(`Success in creating Product Asset ${newProductID}`);
-        return { success: newProduct };
+        console.log(`Success in updating aadhar ${user.id}`);
+        return {success:updatedUserAsBytes};
     }
+
+    async updateProfile(ctx, uid , name , mobile , address , state  , city , pincode ) {
+        const errors = this.checkProperties({
+            uid , name , mobile , address , city , state , pincode
+        });
+        console.info('Checking Error');
+        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
+            console.log(`updateProfile has been invoked with errors: ${JSON.stringify(errors)}`);
+            return errors;
+        }
+        let userBytes = await ctx.stub.getState(uid);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find User' };
+        }
+        let user = JSON.parse(userBytes.toString());
+
+        user.aadhar.name = name;
+        user.aadhar.mobile = mobile;
+        user.Address.address = address;
+        user.Address.state = state;
+        user.Address.city = city;
+        user.Address.pincode = pincode;
+
+        let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
+        try {
+            await ctx.stub.putState(user.id, updatedUserAsBytes);
+        } catch (err) {
+            return { error: `Failed to Update aadhar for user : ${user.id}` };
+        }
+        console.log(`Success in updating aadhar ${user.id}`);
+        return {success:updatedUserAsBytes};
+    }
+
+    async updatePan(ctx, pan , uid ) {
+        if (!pan) {
+            return { error: 'Pan no must be provided' };
+        }
+        if (!uid) {
+            return { error: 'User Id must be provided' };
+        }
+        // get user details from the stub ie. Chaincode stub in network using the user id passed
+        let userBytes = await ctx.stub.getState(uid);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find User' };
+        }
+        let user = JSON.parse(userBytes.toString());
+        // User type check for the function
+        user.pan.id = pan; // product value from UI for the update
+        user.pan.verified = true; // product value from UI for the update
+        let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
+        try {
+            await ctx.stub.putState(user.id, updatedUserAsBytes);
+        } catch (err) {
+            return { error: `Failed to Update pan for user : ${user.id}` };
+        }
+        console.log(`Success in updating pan ${user.id}`);
+        return {success:updatedUserAsBytes};
+    }
+    // transactions
+
+
+
+
     async buyRawProduct(ctx, userId, newItem, action) {
         // Retrieve the user object from the database
         let userBytes = await ctx.stub.getState(userId);
@@ -493,7 +485,7 @@ class SupplyChain extends Contract {
         const time = await this.getCurrentBlockTimestamp(ctx);
         console.log('time');
         console.log(time);
-        const dates = { ManufactureDate: { time } };
+        const dates =  time ;
         const newProduct = {
             id: newProductID,
             name: name,
@@ -517,6 +509,117 @@ class SupplyChain extends Contract {
         console.log(`Success in creating Product Asset ${newProductID}`);
         return { success: newProduct };
     }
+
+    // for farmer
+    async createProduct(ctx, name , mid , price , quantity) {
+        const errors = this.checkProperties({
+            name , mid , price , quantity
+        });
+        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
+            console.log(`createUser has been invoked with errors: ${JSON.stringify(errors)}`);
+            return errors;
+        }
+        const userBytes = await ctx.stub.getState(mid);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find User' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'manufacturer') {
+            return { error: 'User type must be manufacturer' };
+        }
+        const i1 = parseFloat(price);
+        if (isNaN(i1)) {
+            return { error: 'Failed to Convert Price' };
+        }
+        const productCounter = await this.getCounter(ctx, 'ProductCounterNO');
+        const newProductID = `Product${productCounter + 1}`;
+        const time = await this.getCurrentBlockTimestamp(ctx);
+        console.log('time');
+        console.log(time);
+        const dates =  time;
+        const invoice = await this.createInvoice(ctx, 'Raw Material' , mid , 'User1' , price);
+        const newProduct = {
+            id: newProductID,
+            name: name,
+            status: 'Processing',
+            product: {
+                type: '',
+                origin: '',
+                owner: mid,
+                quantity: quantity,
+                price: '',
+                production_date: dates,
+                expiration_date: '',
+                availablefor: 'exporter',
+            },
+            producer: {
+                id: mid,
+                production_data: {
+                    climate: '',
+                    soil_type: ''
+                },
+                status: 'Processing',
+            },
+            exporter: {
+                id: '',
+                export_data: {
+                    shipping_method: '',
+                    export_date: ''
+                },
+                status: 'Not Available'
+            },
+            inspector: {
+                id: '',
+                inspection_data: {
+                    quality_grade: '',
+                    inspection_date: ''
+                },
+                status: 'Not Available'
+            },
+            importer: {
+                id: '',
+                import_data: {
+                    import_order_id: '',
+                    import_date: ''
+                },
+                status: 'Not Available'
+            },
+            logistic: {
+                id: '',
+                logistics_data: {
+                    transport_method: '',
+                    tracking_id: '',
+                    delivery_date: ''
+                },
+                status: 'Not Available'
+            },
+            payment: {
+                raw_product_amount: i1,
+                producer_amount: 0,
+                inspector_amount: 0,
+                exporter_amount: 0,
+                logistics_amount: 0,
+                importer_amount: 0,
+                retail_amount: 0,
+                total_amount: 0,
+            },
+            invoice: {
+                producer_invoice: invoice, //producer buy raw material
+                exporter_invoice: '', // exporter buy from producer invoice
+                logistics_invoice: '', // transport and other invocie
+                importer_invoice: '',  // importer buy from importer invoice
+                retail_invoice: '', // retailer buy from importer invoice
+                customer_invoice: '', // customer buy from retailer invoice
+            },
+        };
+        const newProductBytes = Buffer.from(JSON.stringify(newProduct));
+        await ctx.stub.putState(newProductID, newProductBytes);
+        //TO Increment the Product Counter
+        await this.incrementCounter(ctx, 'ProductCounterNO');
+        console.log(`Success in creating Product Asset ${newProductID}`);
+        return { success: newProduct };
+    }
+
     async updateProductFarmer(ctx, pid , uid , pprice , climate , soil_type) {
         // parameter null check
         if (!pid) {
@@ -556,6 +659,7 @@ class SupplyChain extends Contract {
         product.producer.production_data.soil_type = soil_type; // product value from UI for the update
         product.status = 'Available'; // product value from UI for the update
         product.producer.status = 'Available'; // product value from UI for the update
+        product.product.availablefor = 'exporter'; // product value from UI for the update
         let updatedProductAsBytes = Buffer.from(JSON.stringify(product));
         try {
             await ctx.stub.putState(product.id, updatedProductAsBytes);
@@ -565,7 +669,50 @@ class SupplyChain extends Contract {
         console.log(`Success in updating Product ${product.id}`);
         return {success:updatedProductAsBytes};
     }
-    async updateProductExporter(ctx, pid , uid , pprice) {
+
+    // for exporter
+    async sendToExporter(ctx, pId , eId) {
+        if (!pId) {
+            return { error: 'Product Id must be provided' };
+        }
+        if (!eId) {
+            return { error: 'exporter Id must be provided' };
+        }
+        const productId = pId;
+        const exporterId = eId;
+        const userBytes = await ctx.stub.getState(exporterId);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find exporter user' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'exporter') {
+            return { error: 'User type must be exporter' };
+        }
+        const productBytes = await ctx.stub.getState(productId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Cannot Find Product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.exporter.id !== '') {
+            return { error: 'Product is send to exporter already' };
+        }
+        const txTimestamp = await this.getCurrentBlockTimestamp(ctx);
+        const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], exporterId , product.producer.id );
+        product.exporter.id = exporterId;
+        product.exporter.export_data.export_date = txTimestamp.seconds;
+        product.product.owner = eId;
+        product.product.availablefor = 'importer';
+        product.status = 'Processing';
+        product.producer.status='Complete';
+        product.exporter.status='Processing';
+        product.invoice.exporter_invoice = invoice;
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        await ctx.stub.putState(product.id, updatedProductAsBytes);
+        console.log('Success in sending Product to exporter', product.id);
+        return {success:updatedProductAsBytes};
+    }
+
+    async updateProductExporter(ctx, pid , uid , pprice , packagingType , quantityPerPackage) {
         // parameter null check
         if (!pid) {
             return { error: 'Product Id must be provided' };
@@ -584,7 +731,7 @@ class SupplyChain extends Contract {
         let user = JSON.parse(userBytes.toString());
         // User type check for the function
         if (user.User_Type !== 'exporter') {
-            return { error: 'User type must be a manufacturer' };
+            return { error: 'User type must be a exporter' };
         }
         // get product details from the stub ie. Chaincode stub in network using the product id passed
         let productBytes = await ctx.stub.getState(pid);
@@ -597,11 +744,16 @@ class SupplyChain extends Contract {
         if (isNaN(price)) {
             return { error: 'Failed to Convert Price' };
         }
+        const time = await this.getCurrentBlockTimestamp(ctx);
         // Updating the product values with the new values
         product.product.price = price+product.product.price; // product value from UI for the update
         product.payment.exporter_amount = price; // product value from UI for the update
-        product.status = 'Processing'; // product value from UI for the update
+        product.status = 'Available'; // product value from UI for the update
         product.exporter.status = 'Available'; // product value from UI for the update
+        product.exporter.export_data.packagingType = packagingType; // product value from UI for the update
+        product.exporter.export_data.quantityPerPackage = quantityPerPackage; // product value from UI for the update
+        product.exporter.export_data.export_data = time; // product value from UI for the update
+        product.product.availablefor = 'importer';
         let updatedProductAsBytes = Buffer.from(JSON.stringify(product));
         try {
             await ctx.stub.putState(product.id, updatedProductAsBytes);
@@ -611,7 +763,266 @@ class SupplyChain extends Contract {
         console.log(`Success in updating Product ${product.id}`);
         return {success:updatedProductAsBytes};
     }
-    async updateProductLogistic(ctx, pid , uid , pprice , climate , soil_type) {
+
+    async sendToImporter(ctx, pId , iId) {
+        if (!pId) {
+            return { error: 'Product Id must be provided' };
+        }
+        if (!iId) {
+            return { error: 'Importer Id must be provided' };
+        }
+        const productId = pId;
+        const importerId = iId;
+        const userBytes = await ctx.stub.getState(importerId);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find importer user' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'importer') {
+            return { error: 'User type must be importer' };
+        }
+        const productBytes = await ctx.stub.getState(productId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Cannot Find Product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.importer.id !== '') {
+            return { error: 'Product is send to importer already' };
+        }
+        const txTimestamp = await this.getCurrentBlockTimestamp(ctx);
+        const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], importerId , product.exporter.id );
+        product.importer.id = importerId;
+        product.importer.import_data.import_date = txTimestamp.seconds;
+        product.product.owner = iId;
+        product.product.availablefor = '';
+        product.status = 'Ordered';
+        product.importer.status = 'Ordered';
+        product.exporter.status='Complete';
+        product.invoice.importer_invoice = invoice;
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        await ctx.stub.putState(product.id, updatedProductAsBytes);
+        console.log('Success in sending Product to importer', product.id);
+        return {success:updatedProductAsBytes};
+    }
+
+    async sendToLogistic(ctx, pId , lId , iId , price , date , type) {
+        const errors = this.checkProperties({
+            pId , lId , iId , price , date , type
+        });
+        if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
+            console.log(`sendToLogistics has been invoked with errors: ${JSON.stringify(errors)}`);
+            return errors;
+        }
+
+        const importerBytes = await ctx.stub.getState(iId);
+        if (!importerBytes || importerBytes.length === 0) {
+            return { error: 'Cannot find Importer' };
+        }
+        const logisticBytes = await ctx.stub.getState(lId);
+        if (!logisticBytes || logisticBytes.length === 0) {
+            return { error: 'Cannot find logistic partner' };
+        }
+        const productBytes = await ctx.stub.getState(pId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Cannot find Product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.logistic.id !== '') {
+            return { error: 'Product is already sent assigned to a logistic partner' };
+        }
+        let pprice = parseFloat(price);
+        if (isNaN(price)) {
+            return { error: 'Failed to Convert Price' };
+        }
+        const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], lId , product.importer.id );
+        const txTimestamp =  await this.getCurrentBlockTimestamp(ctx);
+        product.status = 'Shipped';
+        product.importer.status = 'Shipped';
+        product.product.price = pprice+product.product.price; // product value from UI for the update
+        product.payment.logistic_amount = pprice; // product value from UI for the update
+
+        product.logistic.id = lId;
+        product.logistic.logistics_data.date = txTimestamp;
+        product.logistic.logistics_data.expected_delivery_date = date;
+        product.logistic.logistics_data.delivery_type = type;
+        product.invoice.logistic_invoice = invoice;
+
+        product.logistic.status = 'Processing';
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        try {
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
+            console.log('Success in sending Product', product.id);
+            return { success: updatedProductAsBytes };
+        } catch (err) {
+            return { error: `Failed to Send to Distributor: ${product.id}` , status : 400 };
+        }
+    }
+
+    async pickupLogistic(ctx, pId , lId) {
+        if (!pId) {
+            return { error: 'ProductId must be specified' };
+        }
+        if (!lId) {
+            return { error: 'LogisticId must be specified' };
+        }
+        const userBytes = await ctx.stub.getState(lId);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Could not find the logistic' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'logistic') {
+            return { error: 'User must be a logistic' };
+        }
+        const productBytes = await ctx.stub.getState(pId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Could not find the product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.logistic.logistics_data.pickup_date) {
+            return { error: 'Product has already been sent to retailer' };
+        }
+        //To Get the transaction TimeStamp from the Channel Header
+        const txTimestamp =  await this.getCurrentBlockTimestamp(ctx);
+        product.logistic.logistics_data.pickup_date = txTimestamp;
+        product.logistic.status = 'pickup';
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        try {
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
+        } catch (errPut) {
+            return { error: `Failed to pickup prodct: ${product.id}` };
+        }
+        console.log(`product ${product.id} picked up successfully`);
+        return {success:updatedProductAsBytes};
+    }
+
+    async deliveryLogistic(ctx, pId , lId) {
+        if (!pId) {
+            return { error: 'ProductId must be specified' };
+        }
+        if (!lId) {
+            return { error: 'LogisticId must be specified' };
+        }
+        const userBytes = await ctx.stub.getState(lId);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Could not find the logistic' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'logistic') {
+            return { error: 'User must be a logistic' };
+        }
+        const productBytes = await ctx.stub.getState(pId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Could not find the product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.logistic.logistics_data.delivered_date) {
+            return { error: 'Product has already delivered'};
+        }
+        //To Get the transaction TimeStamp from the Channel Header
+        const txTimestamp =  await this.getCurrentBlockTimestamp(ctx);
+        product.logistic.status = 'delivered';
+        product.importer.status = 'recieved';
+        product.logistic.logistics_data.delivery_date = txTimestamp;
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        try {
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
+        } catch (errPut) {
+            return { error: `Failed to deliver prodct: ${product.id}` };
+        }
+        console.log(`product ${product.id} picked up successfully`);
+        return {success:updatedProductAsBytes};
+    }
+
+
+    async updateProductImporter(ctx, pid , iid , pprice) {
+        // parameter null check
+        if (!pid) {
+            return { error: 'Product Id must be provided' };
+        }
+        if (!iid) {
+            return { error: 'User Id must be provided' };
+        }
+        if (!pprice) {
+            return { error: 'Product Price must be provided' };
+        }
+        // get user details from the stub ie. Chaincode stub in network using the user id passed
+        let userBytes = await ctx.stub.getState(iid);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Cannot Find User' };
+        }
+        let user = JSON.parse(userBytes.toString());
+        // User type check for the function
+        if (user.User_Type !== 'importer') {
+            return { error: 'User type must be a importer' };
+        }
+        // get product details from the stub ie. Chaincode stub in network using the product id passed
+        let productBytes = await ctx.stub.getState(pid);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Cannot Find Product' };
+        }
+        let product = JSON.parse(productBytes.toString());
+        //Price conversion - Error handling
+        let price = parseFloat(pprice);
+        if (isNaN(price)) {
+            return { error: 'Failed to Convert Price' };
+        }
+        product.product.price = price+product.product.price; // product value from UI for the update
+        product.payment.producer_amount = price; // product value from UI for the update
+        product.status = 'Available'; // product value from UI for the update
+        product.importer.status = 'Available'; // product value from UI for the update
+        product.product.availablefor = 'retailer'; // product value from UI for the update
+        let updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        try {
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
+        } catch (err) {
+            return { error: `Failed to Update : ${product.id}` };
+        }
+        console.log(`Success in updating Product ${product.id}`);
+        return {success:updatedProductAsBytes};
+    }
+
+    async sendToRetailer(ctx, pId , rId) {
+        if (!pId) {
+            return { error: 'ProductId must be specified' };
+        }
+        if (!rId) {
+            return { error: 'RetailerId must be specified' };
+        }
+        const userBytes = await ctx.stub.getState(rId);
+        if (!userBytes || userBytes.length === 0) {
+            return { error: 'Could not find the retailer' };
+        }
+        const user = JSON.parse(userBytes.toString());
+        if (user.User_Type !== 'retailer') {
+            return { error: 'User must be a retailer' };
+        }
+        const productBytes = await ctx.stub.getState(pId);
+        if (!productBytes || productBytes.length === 0) {
+            return { error: 'Could not find the product' };
+        }
+        const product = JSON.parse(productBytes.toString());
+        if (product.Retailer_ID !== '') {
+            return { error: 'Product has already been sent to retailer' };
+        }
+        //To Get the transaction TimeStamp from the Channel Header
+        const txTimestamp = await ctx.getTxTimestamp();
+        const txTimeAsPtr = {
+            seconds: txTimestamp.seconds.low,
+            nanos: txTimestamp.nanos,
+        };
+        product.Retailer_ID = user.User_ID;
+        product.Date.SendToRetailerDate = txTimeAsPtr;
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        try {
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
+        } catch (errPut) {
+            return { error: `Failed to send to retailer: ${product.id}` };
+        }
+        console.log(`Sent product ${product.id} to retailer successfully`);
+        return {success:updatedProductAsBytes};
+    }
+
+    async updateProductRetailer(ctx, pid , uid , pprice , climate , soil_type) {
         // parameter null check
         if (!pid) {
             return { error: 'Product Id must be provided' };
@@ -659,54 +1070,32 @@ class SupplyChain extends Contract {
         console.log(`Success in updating Product ${product.id}`);
         return {success:updatedProductAsBytes};
     }
-    async updateProductImporter(ctx, pid , uid , pprice , climate , soil_type) {
-        // parameter null check
-        if (!pid) {
+    // not yet used
+
+    async deliveredProduct(ctx, pId) {
+        if (!pId) {
             return { error: 'Product Id must be provided' };
         }
-        if (!uid) {
-            return { error: 'User Id must be provided' };
-        }
-        if (!pprice) {
-            return { error: 'Product Price must be provided' };
-        }
-        // get user details from the stub ie. Chaincode stub in network using the user id passed
-        let userBytes = await ctx.stub.getState(uid);
-        if (!userBytes || userBytes.length === 0) {
-            return { error: 'Cannot Find User' };
-        }
-        let user = JSON.parse(userBytes.toString());
-        // User type check for the function
-        if (user.User_Type !== 'manufacturer') {
-            return { error: 'User type must be a manufacturer' };
-        }
-        // get product details from the stub ie. Chaincode stub in network using the product id passed
-        let productBytes = await ctx.stub.getState(pid);
-        if (!productBytes || productBytes.length === 0) {
+        const productBytes = await ctx.stub.getState(pId);
+        if (productBytes === null) {
             return { error: 'Cannot Find Product' };
         }
-        let product = JSON.parse(productBytes.toString());
-        //Price conversion - Error handling
-        let price = parseFloat(pprice);
-        if (isNaN(price)) {
-            return { error: 'Failed to Convert Price' };
+        const product = JSON.parse(productBytes.toString());
+        if (product.status !== 'sold') {
+            return { error: 'Product is not sold yet' };
         }
-        // Updating the product values with the new values
-        product.product.price = price+product.payment.raw_product_amount; // product value from UI for the update
-        product.payment.producer_amount = price; // product value from UI for the update
-        product.producer.production_data.climate = climate; // product value from UI for the update
-        product.producer.production_data.soil_type = soil_type; // product value from UI for the update
-        product.status = 'Available'; // product value from UI for the update
-        product.producer.status = 'Available'; // product value from UI for the update
-        let updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        try {
-            await ctx.stub.putState(product.id, updatedProductAsBytes);
-        } catch (err) {
-            return { error: `Failed to Update : ${product.id}` };
-        }
-        console.log(`Success in updating Product ${product.id}`);
+        const { seconds, nanos } = ctx.getTxTimestamp();
+        const deliveredDate = new Date(seconds * 1000 + Math.round(nanos / 1000000));
+        product.logistic.logistics_data.delivery_date = deliveredDate;
+        product.Status = 'Delivered';
+        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
+        await ctx.stub.putState(pId, updatedProductAsBytes);
+        console.log(`Success in delivering Product ${product.id}`);
         return {success:updatedProductAsBytes};
     }
+
+
+
     async sendToInspector(ctx, pId , iId , price , grade) {
         if (!pId) {
             return { error: 'Product Id must be provided' };
@@ -748,8 +1137,8 @@ class SupplyChain extends Contract {
         product.inspector.inspection_data.inspection_date = txTimestamp.seconds;
         product.inspector.inspection_data.quality_grade = grade;
         const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        await ctx.stub.putState(product.Product_ID, updatedProductAsBytes);
-        console.log('Success in inspection by  ', product.Product_ID);
+        await ctx.stub.putState(product.id, updatedProductAsBytes);
+        console.log('Success in inspection by  ', product.id);
         return {success:updatedProductAsBytes};
     }
     async orderProductBulk(ctx, cId , pId) {
@@ -793,172 +1182,16 @@ class SupplyChain extends Contract {
         const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
         await this.incrementCounter(ctx, 'OrderCounterNO');
         try {
-            await ctx.stub.putState(product.Product_ID, updatedProductAsBytes);
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
         } catch (err) {
-            return { error: `Failed to place the order: ${product.Product_ID}` };
+            return { error: `Failed to place the order: ${product.id}` };
         }
-        console.log(`Order placed successfully ${product.Product_ID}`);
+        console.log(`Order placed successfully ${product.id}`);
         return {success:updatedProductAsBytes};
     }
-    async sendToExporter(ctx, pId , eId) {
-        if (!pId) {
-            return { error: 'Product Id must be provided' };
-        }
-        if (!eId) {
-            return { error: 'exporter Id must be provided' };
-        }
-        const productId = pId;
-        const exporterId = eId;
-        const userBytes = await ctx.stub.getState(exporterId);
-        if (!userBytes || userBytes.length === 0) {
-            return { error: 'Cannot Find exporter user' };
-        }
-        const user = JSON.parse(userBytes.toString());
-        if (user.User_Type !== 'exporter') {
-            return { error: 'User type must be exporter' };
-        }
-        const productBytes = await ctx.stub.getState(productId);
-        if (!productBytes || productBytes.length === 0) {
-            return { error: 'Cannot Find Product' };
-        }
-        const product = JSON.parse(productBytes.toString());
-        if (product.exporter.id !== '') {
-            return { error: 'Product is send to exporter already' };
-        }
-        const txTimestamp = await this.getCurrentBlockTimestamp(ctx);
-        const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], exporterId , product.producer.id );
-        product.exporter.id = exporterId;
-        product.exporter.export_data.export_date = txTimestamp.seconds;
-        product.product.owner = eId;
-        product.product.availablefor = 'importer';
-        product.status = 'Processing';
-        product.exporter.status='Processing';
-        product.invoice.exporter_invoice = invoice;
-        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        await ctx.stub.putState(product.id, updatedProductAsBytes);
-        console.log('Success in sending Product to exporter', product.Product_ID);
-        return {success:updatedProductAsBytes};
-    }
-    async sendToLogistic(ctx, pId , eId , lId , iId , date) {
-        if (!pId) {
-            return { error: 'Product Id must be provided' };
-        }
-        if (!lId) {
-            return { error: 'logistic partner id must be provided' };
-        }
-        if (!iId) {
-            return { error: 'reciever Id must be provided' };
-        }
-        if (!eId) {
-            return { error: 'exporter Id must be provided' };
-        }
-        if (!date) {
-            return { error: 'date must be provided' };
-        }
-        const importerBytes = await ctx.stub.getState(iId);
-        if (!importerBytes || importerBytes.length === 0) {
-            return { error: 'Cannot find Importer' };
-        }
-        const logisticBytes = await ctx.stub.getState(lId);
-        if (!logisticBytes || logisticBytes.length === 0) {
-            return { error: 'Cannot find logistic partner' };
-        }
-        const exporterBytes = await ctx.stub.getState(eId);
-        if (!exporterBytes || exporterBytes.length === 0) {
-            return { error: 'Cannot find logistic partner' };
-        }
-        const exporter = JSON.parse(exporterBytes.toString());
-        if (exporter.User_Type !== 'exporter') {
-            return { error: 'User type must be exporter' };
-        }
-        const productBytes = await ctx.stub.getState(pId);
-        if (!productBytes || productBytes.length === 0) {
-            return { error: 'Cannot find Product' };
-        }
-        const product = JSON.parse(productBytes.toString());
-        if (product.logistics.id !== '') {
-            return { error: 'Product is already sent assigned to a logistic partner' };
-        }
-        const importer = JSON.parse(importerBytes.toString());
-        // To get the transaction timestamp from the channel header
-        const txTimestamp = (await ctx.getTxTimestamp()).seconds.toNumber();
-        product.status = 'sold';
-        product.logistics.id = importer.User_ID;
-        product.logistics.logistics_data.date = txTimestamp;
-        product.logistics.logistics_data.expected_delivery_date = date;
-        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        try {
-            await ctx.stub.putState(product.Product_ID, updatedProductAsBytes);
-            console.log('Success in sending Product', product.Product_ID);
-            return { success: updatedProductAsBytes };
-        } catch (err) {
-            return { error: `Failed to Send to Distributor: ${product.Product_ID}` };
-        }
-    }
-    async deliveredProduct(ctx, pId) {
-        if (!pId) {
-            return { error: 'Product Id must be provided' };
-        }
-        const productBytes = await ctx.stub.getState(pId);
-        if (productBytes === null) {
-            return { error: 'Cannot Find Product' };
-        }
-        const product = JSON.parse(productBytes.toString());
-        if (product.status !== 'sold') {
-            return { error: 'Product is not sold yet' };
-        }
-        const { seconds, nanos } = ctx.getTxTimestamp();
-        const deliveredDate = new Date(seconds * 1000 + Math.round(nanos / 1000000));
-        product.logistics.logistics_data.delivery_date = deliveredDate;
-        product.Status = 'Delivered';
-        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        await ctx.stub.putState(pId, updatedProductAsBytes);
-        console.log(`Success in delivering Product ${product.Product_ID}`);
-        return {success:updatedProductAsBytes};
-    }
-    async sendToRetailer(ctx, pId , rId) {
-    // if (args.length != 2) {
-    //   return { "error": "Less no of arguments provided" };
-    // }
-        if (!pId) {
-            return { error: 'ProductId must be specified' };
-        }
-        if (!rId) {
-            return { error: 'RetailerId must be specified' };
-        }
-        const userBytes = await ctx.stub.getState(rId);
-        if (!userBytes || userBytes.length === 0) {
-            return { error: 'Could not find the retailer' };
-        }
-        const user = JSON.parse(userBytes.toString());
-        if (user.User_Type !== 'retailer') {
-            return { error: 'User must be a retailer' };
-        }
-        const productBytes = await ctx.stub.getState(pId);
-        if (!productBytes || productBytes.length === 0) {
-            return { error: 'Could not find the product' };
-        }
-        const product = JSON.parse(productBytes.toString());
-        if (product.Retailer_ID !== '') {
-            return { error: 'Product has already been sent to retailer' };
-        }
-        //To Get the transaction TimeStamp from the Channel Header
-        const txTimestamp = await ctx.getTxTimestamp();
-        const txTimeAsPtr = {
-            seconds: txTimestamp.seconds.low,
-            nanos: txTimestamp.nanos,
-        };
-        product.Retailer_ID = user.User_ID;
-        product.Date.SendToRetailerDate = txTimeAsPtr;
-        const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
-        try {
-            await ctx.stub.putState(product.Product_ID, updatedProductAsBytes);
-        } catch (errPut) {
-            return { error: `Failed to send to retailer: ${product.Product_ID}` };
-        }
-        console.log(`Sent product ${product.Product_ID} to retailer successfully`);
-        return {success:updatedProductAsBytes};
-    }
+
+
+
     async sellToConsumer(ctx , pId) {
         if (pId) {
             return { error: 'Product Id must be provided' };
@@ -984,13 +1217,16 @@ class SupplyChain extends Contract {
         product.Status = 'Sold';
         let updatedProductAsBytes = Buffer.from(JSON.stringify(product));
         try {
-            await ctx.stub.putState(product.Product_ID, updatedProductAsBytes);
+            await ctx.stub.putState(product.id, updatedProductAsBytes);
         } catch (error) {
-            return { error: `Failed to Sell To Cosumer : ${product.Product_ID}` };
+            return { error: `Failed to Sell To Cosumer : ${product.id}` };
         }
-        console.log(`Success in sending Product ${product.Product_ID}`);
+        console.log(`Success in sending Product ${product.id}`);
         return {success:updatedProductAsBytes};
     }
+
+    // query
+
     async queryAsset(ctx, query) {
         if (!query) {
             return { error: 'Incorrect number of arguments. Expected 1 argument' };
@@ -1120,7 +1356,7 @@ class SupplyChain extends Contract {
                     Record = res.value.value.toString('utf8');
                 }
                 console.log(Record);
-                if (Record.to === recordValue || Record.from === recordValue) {
+                if (Record.recipient === recordValue || Record.sender === recordValue) {
                     buffer.push({ Key, Record });
                 }
             }
@@ -1132,6 +1368,49 @@ class SupplyChain extends Contract {
         console.log(`- queryAllAssets:\n${JSON.stringify(buffer)}`);
         return { success: buffer };
     }
+    async queryUserByType(ctx, recordValue) {
+        if (!recordValue) {
+            return { error: 'recordValue needed' };
+        }
+        console.log(recordValue);
+        const assetType = 'User';
+        const assetCounter = parseInt(await this.getCounter(ctx, assetType + 'CounterNO'));
+        const startKey = assetType + '1';
+        const endKey = assetType + (assetCounter + 1);
+        const resultsIterator = await ctx.stub.getStateByRange(startKey, endKey);
+        const buffer = [];
+        while (true) {
+            const res = await resultsIterator.next();
+            if (res.value && res.value.value.toString()) {
+                const Key = res.value.key;
+                let Record;
+                try {
+                    Record = JSON.parse(res.value.value.toString('utf8'));
+                } catch (err) {
+                    console.log(err);
+                    Record = res.value.value.toString('utf8');
+                }
+                console.log(Record);
+                if (Record.User_Type === recordValue) {
+                    delete Record.Password;
+                    delete Record.code;
+                    delete Record.pan;
+                    delete Record.aadhar;
+                    delete Record.bank;
+                    delete Record.cart;
+                    delete Record.inventory;
+                    buffer.push({ Key, Record });
+                }
+            }
+            if (res.done) {
+                await resultsIterator.close();
+                break;
+            }
+        }
+        console.log(`- query User By Type:\n${JSON.stringify(buffer)}`);
+        return { success: buffer };
+    }
+
     async queryShopItem(ctx, type, recordElement, recordValue) {
         if (!type) {
             return { error: 'Asset Type must be provided' };
@@ -1225,6 +1504,29 @@ class SupplyChain extends Contract {
         }
         console.log(productAsBytes.toString());
         return productAsBytes.toString();
+    }
+    async userById(ctx, userId ) {
+        if (!userId) {
+            return { error: 'User ID must be provided' };
+        }
+        const entityUserBytes = await ctx.stub.getState(userId);
+        if (!entityUserBytes) {
+            return { error: 'Cannot Find Entity' };
+        }
+        const entityUser = JSON.parse(entityUserBytes.toString());
+        const user = {
+            status:200,
+            Address:entityUser.Address,
+            Email:entityUser.Email,
+            Name:entityUser.Name,
+            User_ID:entityUser.User_ID,
+            User_Type:entityUser.User_Type,
+            profilePic:entityUser.profilePic,
+            aadhar: entityUser.aadhar,
+            pan:entityUser.pan,
+            bank:entityUser.bank
+        };
+        return { success: user };
     }
 }
 module.exports = SupplyChain;

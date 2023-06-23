@@ -1,5 +1,4 @@
 const router = require('express').Router();
-
 const userRouter = require('./user.js');
 const productRouter = require('./product.js');
 const transactRouter = require('./transact.js');

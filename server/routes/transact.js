@@ -10,7 +10,9 @@ transactRouter.post('/', controller.transactProduct);
 
 transactRouter.post('/consumer', controller.transactProductConsumer);
 transactRouter.post('/buyProduct', controller.buyProduct);
+transactRouter.post('/selectLogistic', controller.selectLogistic);
 transactRouter.post('/listItem', controller.listProduct);
-transactRouter.get('/listInvoice', controller.listInvoice);
+transactRouter.post('/productPickup', controller.transactProductPickup);
+transactRouter.post('/productDelivery', controller.transactProductDeliver);
 // transactRouter.post('/inspectProduct', controller.inspectProduct);
 module.exports = transactRouter;
