@@ -178,15 +178,8 @@ class SupplyChain extends Contract {
         let invoiceCounter = await this.getCounter(ctx, 'InvoiceCounterNO');
         for (const sellerId in sellers) {
             let newInvoiceID = `Invoice${invoiceCounter + 1}`;
-            console.log('sellerId');
-            console.log(sellerId);
-            console.log('invoice Counter');
-            console.log(invoiceCounter);
-            console.log("newInvoiceID");
-            console.log(newInvoiceID);
+
             const seller = sellers[sellerId];
-            console.log('seller');
-            console.log(seller);
             const products = seller.products;
             let totalPrice = 0;
             for (const p of products) {
@@ -211,7 +204,6 @@ class SupplyChain extends Contract {
             };
             const newInvoiceBytes = Buffer.from(JSON.stringify(invoice));
             await ctx.stub.putState(newInvoiceID, newInvoiceBytes);
-            console.log("IT got here");
             invoices.push({
                 sellerId,
                 productId: seller.products.map(p => p.id),
@@ -331,9 +323,9 @@ class SupplyChain extends Contract {
         return {success:updatedUserAsBytes};
     }
 
-    async updateProfile(ctx, uid , name , mobile , address , state  , city , pincode ) {
+    async updateProfile(ctx, uid , Name, address, city, country, email ,pincode ,state, mobile , userType ) {
         const errors = this.checkProperties({
-            uid , name , mobile , address , city , state , pincode
+            uid , Name, address, city, country, email ,pincode ,state , mobile, userType
         });
         console.info('Checking Error');
         if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
@@ -346,7 +338,7 @@ class SupplyChain extends Contract {
         }
         let user = JSON.parse(userBytes.toString());
 
-        user.aadhar.name = name;
+        user.aadhar.name = Name;
         user.aadhar.mobile = mobile;
         user.Address.address = address;
         user.Address.state = state;
@@ -554,6 +546,7 @@ class SupplyChain extends Contract {
             },
             producer: {
                 id: mid,
+                name: name,
                 production_data: {
                     climate: '',
                     soil_type: ''
@@ -562,6 +555,7 @@ class SupplyChain extends Contract {
             },
             exporter: {
                 id: '',
+                name: name,
                 export_data: {
                     shipping_method: '',
                     export_date: ''
@@ -570,6 +564,7 @@ class SupplyChain extends Contract {
             },
             inspector: {
                 id: '',
+                name: name,
                 inspection_data: {
                     quality_grade: '',
                     inspection_date: ''
@@ -578,6 +573,7 @@ class SupplyChain extends Contract {
             },
             importer: {
                 id: '',
+                name: name,
                 import_data: {
                     import_order_id: '',
                     import_date: ''
@@ -586,6 +582,7 @@ class SupplyChain extends Contract {
             },
             logistic: {
                 id: '',
+                name: name,
                 logistics_data: {
                     transport_method: '',
                     tracking_id: '',
@@ -699,6 +696,7 @@ class SupplyChain extends Contract {
         const txTimestamp = await this.getCurrentBlockTimestamp(ctx);
         const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], exporterId , product.producer.id );
         product.exporter.id = exporterId;
+        product.exporter.name = user.Name;
         product.exporter.export_data.export_date = txTimestamp.seconds;
         product.product.owner = eId;
         product.product.availablefor = 'importer';
@@ -792,6 +790,7 @@ class SupplyChain extends Contract {
         const txTimestamp = await this.getCurrentBlockTimestamp(ctx);
         const invoice = await this.createInvoice(ctx, [{name:product.name , price:product.product.price , quantity:product.product.quantity ,id:product.id  }], importerId , product.exporter.id );
         product.importer.id = importerId;
+        product.importer.name = user.Name;
         product.importer.import_data.import_date = txTimestamp.seconds;
         product.product.owner = iId;
         product.product.availablefor = '';
@@ -818,9 +817,15 @@ class SupplyChain extends Contract {
         if (!importerBytes || importerBytes.length === 0) {
             return { error: 'Cannot find Importer' };
         }
+
+
         const logisticBytes = await ctx.stub.getState(lId);
         if (!logisticBytes || logisticBytes.length === 0) {
             return { error: 'Cannot find logistic partner' };
+        }
+        const user = JSON.parse(logisticBytes.toString());
+        if (user.User_Type !== 'logistic') {
+            return { error: 'User type must be importer' };
         }
         const productBytes = await ctx.stub.getState(pId);
         if (!productBytes || productBytes.length === 0) {
@@ -842,6 +847,7 @@ class SupplyChain extends Contract {
         product.payment.logistic_amount = pprice; // product value from UI for the update
 
         product.logistic.id = lId;
+        product.logistic.name = user.Name;
         product.logistic.logistics_data.date = txTimestamp;
         product.logistic.logistics_data.expected_delivery_date = date;
         product.logistic.logistics_data.delivery_type = type;

@@ -43,7 +43,8 @@ async function main() {
     app.use(bodyParser.json());
     app.use(cors(
         {
-            origin: 'http://localhost:5173',
+            // origin: 'https://smart-farming-and-retail.vercel.app',
+            origin: '*',
             methods: 'GET,POST,PUT,DELETE',
             credentials: true,
         }

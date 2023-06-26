@@ -1,6 +1,7 @@
 const axios = require('axios');
 const token = process.env.KYCHUB_API;
 const endpoint = 'https://api.kychub.com';
+
 module.exports.panVerification = function(data) {
     return new Promise((resolve, reject) => {
         data = JSON.stringify({
@@ -31,7 +32,6 @@ module.exports.panVerification = function(data) {
     });
 };
 
-
 module.exports.aadharVerify = function(data) {
     return new Promise((resolve, reject) => {
         const url = endpoint + '/kyc/india/v2/document-validation';
@@ -56,6 +56,7 @@ module.exports.aadharVerify = function(data) {
         axios(config)
             .then((response) => {
                 resolve(response.data);
+                console.log(response);
                 console.log(response.data);
             })
             .catch((error) => {

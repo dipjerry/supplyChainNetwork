@@ -175,7 +175,8 @@ exports.signin = async (req, res) => {
     const { id, password } = req.body;
     const { role } = req.params;
 
-    console.log(req.body);
+    // console.log(req.body);
+    console.log("🚀 ~ file: user.js:179 ~ exports.signin= ~ req.body:", req.body)
     console.log(req.params);
     if (!id || !password || !role) {
         return apiResponse.badRequest(res);
@@ -233,20 +234,49 @@ exports.verify_and_add_aadhar = async (req, res) => {
     return apiResponse.send(res, modelRes);
 };
 exports.verify_and_add_pan = async (req, res) => {
-    const { id, userType, pan} = req.body;
-    if ((!id || !userType || !pan)) {
+    const { id, userType, panNo , name} = req.body;
+    if ((!id || !userType || !panNo || !name)) {
         console.log('1');
         return apiResponse.badRequest(res);
     }
 
+
     let modelRes;
     if (userType === 'manufacturer') {
-        modelRes = await authModel.verify_and_add_aadhar(true, false, false, {  id, userType, pan });
+        modelRes = await authModel.verify_and_add_pan(true, false, false, {  id, userType, panNo , name });
     } else if (userType === 'importer' || userType === 'exporter' ||
     userType === 'logistic' || userType === 'retailer') {
-        modelRes = await authModel.verify_and_add_aadhar(false, true, false, {  id, userType, pan });
+        modelRes = await authModel.verify_and_add_pan(false, true, false, {  id, userType, panNo , name });
     } else if (userType === 'consumer') {
-        modelRes = await authModel.verify_and_add_aadhar(false, false, true, {  id, userType, pan });
+        modelRes = await authModel.verify_and_add_pan(false, false, true, {  id, userType, panNo , name });
+    } else {
+        return apiResponse.badRequest(res);
+    }
+
+    return apiResponse.send(res, modelRes);
+};
+
+exports.profile = async (req, res) => {
+
+
+
+    const {Name, address, city, country, email,id,pincode ,state, userType , mobile} = req.body;
+    console.log("🚀 ~ file: user.js:264 ~ exports.profile= ~ req.body:", req.body)
+    if ((!Name|| !address || !city || !country || !email|| !id|| !pincode  || !mobile || !userType)) {
+        console.log('here');
+        console.log('1');
+        return apiResponse.badRequest(res);
+    }
+
+
+    let modelRes;
+    if (userType === 'manufacturer') {
+        modelRes = await authModel.add_profile(true, false, false, { Name, address, city, country, email,id,pincode ,state, mobile,userType });
+    } else if (userType === 'importer' || userType === 'exporter' ||
+    userType === 'logistic' || userType === 'retailer') {
+        modelRes = await authModel.add_profile(false, true, false, { Name, address, city, country, email,id,pincode ,state,mobile, userType });
+    } else if (userType === 'consumer') {
+        modelRes = await authModel.add_profile(false, false, true, { Name, address, city, country, email,id,pincode ,state, mobile, userType });
     } else {
         return apiResponse.badRequest(res);
     }

@@ -14,5 +14,6 @@ transactRouter.post('/selectLogistic', controller.selectLogistic);
 transactRouter.post('/listItem', controller.listProduct);
 transactRouter.post('/productPickup', controller.transactProductPickup);
 transactRouter.post('/productDelivery', controller.transactProductDeliver);
+transactRouter.get('/listInvoice', controller.listInvoice); 
 // transactRouter.post('/inspectProduct', controller.inspectProduct);
 module.exports = transactRouter;

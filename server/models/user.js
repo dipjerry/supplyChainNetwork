@@ -50,8 +50,9 @@ exports.verify_and_add_aadhar = async (isManufacturer, isMiddlemen, isConsumer, 
     // const contractRes = await network.invoke(networkObj, 'signIn', id);
     const userRes = await network.invoke(networkObj, 'userById', id);
     console.log('🚀 ~ file: user.js:51 ~ exports.verify_and_add_aadhar= ~ contractRes:', userRes.success.Name);
+    console.log("🚀 ~ file: user.js:54 ~ exports.verify_and_add_aadhar= ~ kycreq:", kycreq)
     if (kycreq.statusCode === 2011) {
-
+        console.log('Success');
     } else if ([503, 2005, 2013].includes(kycreq.statusCode)) {
         const message = {
             102: kycreq.data.message,
@@ -80,16 +81,17 @@ exports.verify_and_add_aadhar = async (isManufacturer, isMiddlemen, isConsumer, 
 };
 
 exports.verify_and_add_pan = async (isManufacturer, isMiddlemen, isConsumer, information) => {
-    const { id, pan } = information;
+    const { id, panNo , name } = information;
     const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
     // let contractRes;
     const userRes = await network.invoke(networkObj, 'userById', id);
+    console.log("🚀 ~ file: user.js:88 ~ exports.verify_and_add_pan= ~ userRes:", userRes)
 
     const data = {
-        number:pan,
-        name:userRes.success.Name,
+        number:panNo,
+        name:name,
     };
-    const kycreq = await ekyc.aadharVerify(data);
+    const kycreq = await ekyc.panVerification(data);
 
     console.log('🚀 ~ file: user.js:47 ~ exports.verify_and_add_aadhar= ~ kycreq:', kycreq);
     // const contractRes = await network.invoke(networkObj, 'signIn', id, password);
@@ -102,6 +104,24 @@ exports.verify_and_add_pan = async (isManufacturer, isMiddlemen, isConsumer, inf
     // const { Name, User_Type , profilePic } = contractRes.success;
     // const accessToken = authenticateUtil.generateAccessToken({ id, User_Type, Name });
     return apiResponse.createModelRes(200, 'Success', { id, kycreq });
+};
+exports.add_profile = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { Name, address, city, country, email,id,pincode ,state, mobile, userType } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const userRes = await network.invoke(networkObj, 'userById', id);
+
+
+    const contractRes = await network.invoke(networkObj, 'updateProfile', id, Name, address, city, country, email ,pincode ,state, mobile,userType);
+    // const error = networkObj.error || contractRes.error;
+    // if (error) {
+    //     const status = networkObj.status || contractRes.status;
+    //     return apiResponse.createModelRes(status, error);
+    // }
+    // console.log(contractRes.success);
+    // const { Name, User_Type , profilePic } = contractRes.success;
+    // const accessToken = authenticateUtil.generateAccessToken({ id, User_Type, Name });
+    return apiResponse.createModelRes(200, 'Success', { id  });
 };
 
 exports.inventory = async (isManufacturer, isMiddlemen, isConsumer, information) => {
