@@ -3,9 +3,10 @@ const token = process.env.KYCHUB_API;
 const endpoint = 'https://api.kychub.com';
 
 module.exports.panVerification = function(data) {
+    console.log("🚀 ~ file: ekyc.js:6 ~ data:", data)
     return new Promise((resolve, reject) => {
         data = JSON.stringify({
-            pan: data.panNo,
+            pan: data.number,
             name: data.name,
         });
 

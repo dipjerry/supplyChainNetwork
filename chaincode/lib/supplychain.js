@@ -233,6 +233,7 @@ class SupplyChain extends Contract {
         if (entityUser.Password !== password) {
             return { status:400, error: 'Either ID or password is wrong' };
         }
+
         const user = {
             status:200,
             Address:entityUser.Address,
@@ -240,6 +241,7 @@ class SupplyChain extends Contract {
             Name:entityUser.Name,
             User_ID:entityUser.User_ID,
             User_Type:entityUser.User_Type,
+            kyc:entityUser.aadhar.verified && entityUser.pan.verified ? 'verified' : 'notVerified',
             profilePic:entityUser.profilePic
         };
         return { success: user };
@@ -304,8 +306,8 @@ class SupplyChain extends Contract {
         if (!uid) {
             return { error: 'User Id must be provided' };
         }
-        // get user details from the stub ie. Chaincode stub in network using the user id passed
         let userBytes = await ctx.stub.getState(uid);
+        console.log("🚀 ~ file: supplychain.js:310 ~ SupplyChain ~ updateAadhar ~ userBytes:", userBytes)
         if (!userBytes || userBytes.length === 0) {
             return { error: 'Cannot Find User' };
         }
@@ -315,17 +317,17 @@ class SupplyChain extends Contract {
         user.aadhar.verified = true; // product value from UI for the update
         let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
         try {
-            await ctx.stub.putState(user.id, updatedUserAsBytes);
+            await ctx.stub.putState(user.User_ID, updatedUserAsBytes);
         } catch (err) {
-            return { error: `Failed to Update aadhar for user : ${user.id}` };
+            return { error: `Failed to Update aadhar for user : ${user.User_ID}` };
         }
         console.log(`Success in updating aadhar ${user.id}`);
         return {success:updatedUserAsBytes};
     }
 
-    async updateProfile(ctx, uid , Name, address, city, country, email ,pincode ,state, mobile , userType ) {
+    async updateProfile(ctx, uid , Name, address, city, country, email ,pincode , mobile , userType ) {
         const errors = this.checkProperties({
-            uid , Name, address, city, country, email ,pincode ,state , mobile, userType
+            uid , Name, address, city, country, email ,pincode  , mobile, userType
         });
         console.info('Checking Error');
         if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
@@ -341,17 +343,16 @@ class SupplyChain extends Contract {
         user.aadhar.name = Name;
         user.aadhar.mobile = mobile;
         user.Address.address = address;
-        user.Address.state = state;
         user.Address.city = city;
         user.Address.pincode = pincode;
 
         let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
         try {
-            await ctx.stub.putState(user.id, updatedUserAsBytes);
+            await ctx.stub.putState(user.User_ID, updatedUserAsBytes);
         } catch (err) {
-            return { error: `Failed to Update aadhar for user : ${user.id}` };
+            return { error: `Failed to Update profile for user : ${user.id}` };
         }
-        console.log(`Success in updating aadhar ${user.id}`);
+        console.log(`Success in updating profile ${user.User_ID}`);
         return {success:updatedUserAsBytes};
     }
 
@@ -373,11 +374,11 @@ class SupplyChain extends Contract {
         user.pan.verified = true; // product value from UI for the update
         let updatedUserAsBytes = Buffer.from(JSON.stringify(user));
         try {
-            await ctx.stub.putState(user.id, updatedUserAsBytes);
+            await ctx.stub.putState(user.User_ID, updatedUserAsBytes);
         } catch (err) {
             return { error: `Failed to Update pan for user : ${user.id}` };
         }
-        console.log(`Success in updating pan ${user.id}`);
+        console.log(`Success in updating pan ${user.User_ID}`);
         return {success:updatedUserAsBytes};
     }
     // transactions
@@ -564,11 +565,7 @@ class SupplyChain extends Contract {
             },
             inspector: {
                 id: '',
-                name: name,
-                inspection_data: {
-                    quality_grade: '',
-                    inspection_date: ''
-                },
+                inspection_data: [],
                 status: 'Not Available'
             },
             importer: {
@@ -1102,30 +1099,25 @@ class SupplyChain extends Contract {
 
 
 
-    async sendToInspector(ctx, pId , iId , price , grade) {
+    async sendToInspector(ctx, id , pId   , grade , data) {
         if (!pId) {
             return { error: 'Product Id must be provided' };
         }
-        if (!iId) {
+        if (!id) {
             return { error: 'Inspector Id must be provided' };
-        }
-        if (!price) {
-            return { error: 'price must be provided' };
         }
         if (!grade) {
             return { error: 'quality grade must be provided' };
         }
-        const productId = pId;
-        const inspectorId = iId;
-        const userBytes = await ctx.stub.getState(inspectorId);
+        if (!grade) {
+            return { error: 'data must be provided' };
+        }
+        const userBytes = await ctx.stub.getState(id);
         if (!userBytes || userBytes.length === 0) {
-            return { error: 'Cannot Find inspector user' };
+            return { error: 'Cannot Find user' };
         }
         const user = JSON.parse(userBytes.toString());
-        if (user.User_Type !== 'inspectorId') {
-            return { error: 'User type must be inspector'};
-        }
-        const productBytes = await ctx.stub.getState(productId);
+        const productBytes = await ctx.stub.getState(pId);
         if (!productBytes || productBytes.length === 0) {
             return { error: 'Cannot Find Product' };
         }
@@ -1133,18 +1125,19 @@ class SupplyChain extends Contract {
         if (product.inspector.id !== '') {
             return { error: 'Product is already inspected' };
         }
-        const i1 = parseFloat(price);
-        if (isNaN(i1)) {
-            return { error: 'Failed to Convert Price' };
-        }
-        const txTimestamp = ctx.getTxTimestamp();
-        product.inspector.id = user.User_ID;
-        product.inspector.inspection_data.quality_grade = txTimestamp.seconds;
-        product.inspector.inspection_data.inspection_date = txTimestamp.seconds;
-        product.inspector.inspection_data.quality_grade = grade;
+        const txTimestamp = this.getCurrentBlockTimestamp(ctx);
+        const inspection_data = {
+            name : id,
+            grade: grade,
+            data: data,
+            time: txTimestamp
+        };
+        product.inspector.id = 'User1';
+        product.inspector.status = 'Available';
+        product.inspector.inspection_data.push(inspection_data);
         const updatedProductAsBytes = Buffer.from(JSON.stringify(product));
         await ctx.stub.putState(product.id, updatedProductAsBytes);
-        console.log('Success in inspection by  ', product.id);
+        console.log('Success in inspection by  ', 'User1');
         return {success:updatedProductAsBytes};
     }
     async orderProductBulk(ctx, cId , pId) {
