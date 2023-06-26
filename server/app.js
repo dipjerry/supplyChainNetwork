@@ -19,12 +19,6 @@ const router = require('./routes/index.js');
 
 async function main() {
 
-<<<<<<< HEAD
-    await network.enrollAdmin(true, false, false);
-    await network.enrollAdmin(false,true,false);
-    await network.enrollAdmin(false,false,true);
-    await user.signup(true, false, false , {userType:'admin', address:'HQ', name:'supplychain management', email:'admin@gmail.com', password:'1234' , id:'admin' });
-=======
 
     // await network.enrollAdmin(true, false, false);
     // await network.enrollAdmin(false,true,false);
@@ -43,7 +37,6 @@ async function main() {
     // await transact.listProduct(true, false, false , {productId:'Product3' , loggedUserType:'manufacturer' , id:'User4', climate:'rainy' , soilType:'Moist' , price:300});
     // await transact.sendToExporter({productId:'Product3' ,  userId:'User5'});
     // await transact.listProduct(false, true, false , {productId:'Product3' , loggedUserType:'exporter' , id:'User5', packagingType:'box' , quantityPerPackage:5 , price:300});
->>>>>>> b3ddb7276106ef8bfe6c52713fcfa41f32c02ae3
 
     const app = express();
     app.use(morgan('combined'));
