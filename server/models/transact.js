@@ -1,9 +1,21 @@
 const network = require('../fabric/network');
 const apiResponse = require('../utils/apiResponse');
+const helper = require('../helpers/helper_functions');
+
+
+
+// helper.sendMail('kaxyapdip@gmail.com', "emailSubject", "Welcome to supply chain")
+//     .then(response => {
+//         console.log('Email sent successfully:', response);
+//     })
+//     .catch(error => {
+//         console.log('Error sending email:', error);
+//     });
+
 
 exports.sendToExporter = async information => {
-    console.log('information')
-    console.log(information)
+    console.log('information');
+    console.log(information);
     const { productId , userId } = information;
 
     const networkObj = await network.connect(false, true, false, userId);
@@ -34,7 +46,7 @@ exports.sendToImporter = async information => {
 
 exports.sendToLogistic = async ( isManufacturer, isMiddlemen, isConsumer ,information ) => {
     const { id,   productId , logistic ,  preferredDeliveryDate , deliveryType} = information;
-    console.log("🚀 ~ file: transact.js:37 ~ logistic:", logistic)
+    console.log('🚀 ~ file: transact.js:37 ~ logistic:', logistic);
 
     const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
     const contractRes = await network.invoke(networkObj, 'sendToLogistic' , productId , logistic, id , 200 ,  preferredDeliveryDate , deliveryType );
@@ -157,7 +169,7 @@ exports.listProduct = async ( isManufacturer, isMiddlemen, isConsumer ,informati
         const status = networkObj.status || contractRes.status;
         return apiResponse.createModelRes(status, error);
     }
-    console.log("list product");
+    console.log('list product');
     console.log(contractRes);
     return apiResponse.createModelRes(200, 'Success', contractRes);
 };

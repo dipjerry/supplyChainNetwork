@@ -18,7 +18,8 @@ authRouter.get('/userbytype', controller.userByType);
 // authRouter.get('/user/:role/userId/:userId', controller.getUser);
 authRouter.get('/userbyid', controller.userById);
 authRouter.post('/kyc/verify_and_add_aadhar', controller.verify_and_add_aadhar);
-authRouter.get('/kyc/verify_and_add_pan', controller.verify_and_add_pan);
+authRouter.post('/kyc/verify_and_add_pan', controller.verify_and_add_pan);
+authRouter.post('/profile', controller.profile);
 // authRouter.post('/kyc/verify_and_add_bank', controller.verify_and_add_bank);
 
 module.exports = authRouter;
