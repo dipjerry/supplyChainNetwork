@@ -12,11 +12,12 @@ productRouter.post('/', controller.createProduct);
 productRouter.put('/:productId/:role', controller.updateProduct);
 productRouter.get('/:productId/:role', controller.getProductbyId);
 productRouter.get('/products', controller.getAllProducts);
+productRouter.get('/raw_products', controller.getAllRawProducts);
 productRouter.get('/productsbyRole', controller.getProductsByRole);
+productRouter.get('/shopProduct', controller.getshopProduct);
 
 
 // productRouter.get('/getinvoice/:invoiceid', controller.getAllProducts);
-
 // productRouter.post('/order', controller.createOrder);
 // productRouter.post('/delivered', controller.isDelivered);
 

@@ -1,13 +1,15 @@
 const network = require('../fabric/network');
 const apiResponse = require('../utils/apiResponse');
 const authenticateUtil = require('../utils/authenticate');
+const ekyc = require('./service/ekyc');
 
 
 exports.signup = async (isManufacturer, isMiddlemen, isConsumer, information) => {
-    const {userType, address, name, email, password , id } = information;
-
+    const {userType, address, name, email, password , id , profilePic } = information;
     const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer);
-    const contractRes = await network.invoke(networkObj, 'createUser', name, email, userType, address, password);
+    console.log('profilePic');
+    console.log(profilePic);
+    const contractRes = await network.invoke(networkObj, 'createUser', name, email, userType, address, password , profilePic);
     console.log('contractRes');
     console.log(contractRes.User_ID);
     console.log('5');
@@ -31,9 +33,124 @@ exports.signin = async (isManufacturer, isMiddlemen, isConsumer, information) =>
         return apiResponse.createModelRes(status, error);
     }
     console.log(contractRes.success);
-    const { Name, User_Type } = contractRes.success;
+    const { Name, User_Type , profilePic } = contractRes.success;
     const accessToken = authenticateUtil.generateAccessToken({ id, User_Type, Name });
-    return apiResponse.createModelRes(200, 'Success', { id, User_Type, Name, accessToken });
+    return apiResponse.createModelRes(200, 'Success', { id, User_Type, Name,profilePic, accessToken });
+};
+
+exports.verify_and_add_aadhar = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { id, aadhar } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const data = {
+        number:aadhar,
+        type:'Aadhaar',
+    };
+    const kycreq = await ekyc.aadharVerify(data);
+    // const contractRes = await network.invoke(networkObj, 'signIn', id);
+    const userRes = await network.invoke(networkObj, 'userById', id);
+    console.log('🚀 ~ file: user.js:51 ~ exports.verify_and_add_aadhar= ~ contractRes:', userRes.success.Name);
+    if (kycreq.statusCode === 2011) {
+
+    } else if ([503, 2005, 2013].includes(kycreq.statusCode)) {
+        const message = {
+            102: kycreq.data.message,
+            103: kycreq.data.message,
+            104: kycreq.data.message,
+        }[kycreq.statusCode];
+        apiResponse.createModelRes(kycreq.statusCode
+            , 'failed' ,{ message});
+    } else {
+        return apiResponse.createModelRes(400, 'Fail', {  message: 'Internal server error' });
+    }
+
+
+
+
+    console.log('🚀 ~ file: user.js:47 ~ exports.verify_and_add_aadhar= ~ kycreq:', kycreq);
+    // const error = networkObj.error || contractRes.error;
+    // if (error) {
+    //     const status = networkObj.status || contractRes.status;
+    //     return apiResponse.createModelRes(status, error);
+    // }
+    // console.log(contractRes.success);
+    // const { Name, User_Type , profilePic } = contractRes.success;
+    // const accessToken = authenticateUtil.generateAccessToken({ id, User_Type, Name });
+    return apiResponse.createModelRes(200, 'Success', { id, kycreq });
+};
+
+exports.verify_and_add_pan = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { id, pan } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const userRes = await network.invoke(networkObj, 'userById', id);
+
+    const data = {
+        number:pan,
+        name:userRes.success.Name,
+    };
+    const kycreq = await ekyc.aadharVerify(data);
+
+    console.log('🚀 ~ file: user.js:47 ~ exports.verify_and_add_aadhar= ~ kycreq:', kycreq);
+    // const contractRes = await network.invoke(networkObj, 'signIn', id, password);
+    // const error = networkObj.error || contractRes.error;
+    // if (error) {
+    //     const status = networkObj.status || contractRes.status;
+    //     return apiResponse.createModelRes(status, error);
+    // }
+    // console.log(contractRes.success);
+    // const { Name, User_Type , profilePic } = contractRes.success;
+    // const accessToken = authenticateUtil.generateAccessToken({ id, User_Type, Name });
+    return apiResponse.createModelRes(200, 'Success', { id, kycreq });
+};
+
+exports.inventory = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { id} = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const contractRes = await network.invoke(networkObj, 'queryUser', id);
+    const error = networkObj.error || contractRes.error;
+    if (error) {
+        const status = networkObj.status || contractRes.status;
+        return apiResponse.createModelRes(status, error);
+    }
+    console.log('contractRes.success');
+    console.log(contractRes);
+    const { inventory } = contractRes;
+    return apiResponse.createModelRes(200, 'Success', { id, inventory });
+};
+
+exports.userByType = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { type , id } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const contractRes = await network.invoke(networkObj, 'queryUserByType', type);
+    const error = networkObj.error || contractRes.error;
+    if (error) {
+        const status = networkObj.status || contractRes.status;
+        return apiResponse.createModelRes(status, error);
+    }
+    console.log('contractRes.success');
+    console.log(contractRes);
+    console.log(contractRes.success);
+    // const {name,
+    //     newUserID,email,address } = contractRes;
+    return apiResponse.createModelRes(200, 'Success', contractRes.success);
+};
+
+exports.userById = async (isManufacturer, isMiddlemen, isConsumer, information) => {
+    const { id } = information;
+    const networkObj = await network.connect(isManufacturer, isMiddlemen, isConsumer, id);
+    // let contractRes;
+    const contractRes = await network.invoke(networkObj, 'userById', id);
+    const error = networkObj.error || contractRes.error;
+    if (error) {
+        const status = networkObj.status || contractRes.status;
+        return apiResponse.createModelRes(status, error);
+    }
+    // const {name,
+    //     newUserID,email,address } = contractRes;
+    return apiResponse.createModelRes(200, 'Success', contractRes.success);
 };
 
 exports.getAllUser = async (isManufacturer, isMiddlemen, isConsumer) => {

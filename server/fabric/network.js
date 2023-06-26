@@ -5,12 +5,15 @@ const { FileSystemWallet, Wallets , Gateway, X509WalletMixin } = require('fabric
 const manufacturerCcpPath = path.resolve(__dirname, '../../../', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com', 'connection-org1.json');
 const manufacturerCcpFile = fs.readFileSync(manufacturerCcpPath, 'utf8');
 const manufacturerCcp = JSON.parse(manufacturerCcpFile);
+
 const middlemenCcpPath = path.resolve(__dirname, '../../../',  'test-network', 'organizations', 'peerOrganizations', 'org2.example.com', 'connection-org2.json');
 const middlemenCcpFile = fs.readFileSync(middlemenCcpPath, 'utf8');
 const middlemenCcp = JSON.parse(middlemenCcpFile);
+
 const consumerCcpPath = path.resolve(__dirname, '../../../',  'test-network', 'organizations', 'peerOrganizations', 'org2.example.com', 'connection-org2.json');
 const consumerCcpFile = fs.readFileSync(consumerCcpPath, 'utf8');
 const consumerCcp = JSON.parse(consumerCcpFile);
+
 function getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer) {
     const connectionMaterial = {};
     if (isManufacturer) {
@@ -18,12 +21,16 @@ function getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer) {
         connectionMaterial.connection = manufacturerCcp;
         connectionMaterial.orgMSPID = process.env.MANUFACTURER_MSP;
         connectionMaterial.caURL = process.env.MANUFACTURER_CA_ADDR;
+        connectionMaterial.ccpPath = manufacturerCcpPath;
+        connectionMaterial.affiliation= 'org1.department1';
     }
     if (isMiddleMen) {
         connectionMaterial.walletPath = path.join(process.cwd(), process.env.MIDDLEMEN_WALLET);
         connectionMaterial.connection = middlemenCcp;
         connectionMaterial.orgMSPID = process.env.MIDDLEMEN_MSP;
         connectionMaterial.caURL = process.env.MIDDLEMEN_CA_ADDR;
+        connectionMaterial.ccpPath = middlemenCcpPath;
+        connectionMaterial.affiliation= 'org2.department1';
     }
     if (isConsumer) {
         console.log(process.env.CONSUMER_WALLET);
@@ -31,6 +38,8 @@ function getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer) {
         connectionMaterial.connection = consumerCcp;
         connectionMaterial.orgMSPID = process.env.CONSUMER_MSP;
         connectionMaterial.caURL = process.env.CONSUMER_CA_ADDR;
+        connectionMaterial.ccpPath = consumerCcpPath;
+        connectionMaterial.affiliation= 'org2.department1';
     }
     return connectionMaterial;
 }
@@ -41,7 +50,9 @@ exports.connect = async (isManufacturer, isMiddleMen, isConsumer) => {
         const userID = process.env.ADMIN;
         // const wallet = new FileSystemWallet(walletPath);
         const wallet = await Wallets.newFileSystemWallet(walletPath);
+        console.log(`User id:${userID}`);
         console.log(`Wallet path: ${walletPath}`);
+        console.log(`Connection path: ${connection}`);
         // const userExists = await wallet.exists(userID);
         // if (!userExists) {
         //     console.error(`An identity for the user ${userID} does not exist in the wallet. Register ${userID} first`);
@@ -52,6 +63,7 @@ exports.connect = async (isManufacturer, isMiddleMen, isConsumer) => {
             identity: userID,
             discovery: { enabled: true, asLocalhost: true },
         });
+
         const network = await gateway.getNetwork(process.env.CHANNEL);
         const contract = await network.getContract(process.env.CONTRACT);
         console.log('Connected to fabric network successly.');
@@ -85,6 +97,7 @@ exports.invoke = async (networkObj, ...funcAndArgs) => {
         const funcAndArgsStrings = funcAndArgs.map(elem => String(elem));
         console.log(funcAndArgsStrings);
         const response = await networkObj.contract.submitTransaction(...funcAndArgsStrings);
+        console.log("response");
         console.log(response);
         console.log(`Transaction ${funcAndArgs} has been submitted: ${response}`);
         return JSON.parse(response);
@@ -99,8 +112,8 @@ exports.invoke = async (networkObj, ...funcAndArgs) => {
 };
 exports.enrollAdmin = async (isManufacturer, isMiddleMen, isConsumer) => {
     try {
-        const { walletPath,  connection , caURL } = getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer);
-        // console.log(getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer));
+        const { walletPath,  connection , caURL , orgMSPID } = getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer);
+        console.log(getConnectionMaterial(isManufacturer, isMiddleMen, isConsumer));
         const caInfo = connection.certificateAuthorities[caURL];
         const caTLSCACerts = caInfo.tlsCACerts.pem;
         const ca = new FabricCAServices(caInfo.url, { trustedRoots: caTLSCACerts, verify: false }, caInfo.caName);
@@ -118,7 +131,7 @@ exports.enrollAdmin = async (isManufacturer, isMiddleMen, isConsumer) => {
                 certificate: enrollment.certificate,
                 privateKey: enrollment.key.toBytes(),
             },
-            mspId: 'Org1MSP',
+            mspId: orgMSPID,
             type: 'X.509',
         };
         await wallet.put('admin', x509Identity);
@@ -131,11 +144,11 @@ exports.enrollAdmin = async (isManufacturer, isMiddleMen, isConsumer) => {
 exports.registerUser = async (isManufacturer, isMiddleMen, isConsumer, userID , admin) => {
     const gateway = new Gateway();
     try {
-        const { walletPath, connection, orgMSPID , caURL } = getConnectionMaterial(isManufacturer,isMiddleMen,isConsumer);
+        const { walletPath, connection, orgMSPID , caURL , ccpPath , affiliation} = getConnectionMaterial(isManufacturer,isMiddleMen,isConsumer);
         // const { connection, orgMSPID } = getConnectionMaterial(isManufacturer,isMiddleMen,isConsumer);
         // const walletPath = path.join(process.cwd(), 'wallet');
         // console.log(walletPath);
-        console.log(orgMSPID);
+        // console.log(orgMSPID);
         const wallet = await Wallets.newFileSystemWallet(walletPath);
         const userExists = await wallet.get(userID);
         if (userExists) {
@@ -149,7 +162,7 @@ exports.registerUser = async (isManufacturer, isMiddleMen, isConsumer, userID , 
         });
         // const ca = gateway.getClient().getCertificateAuthority();
 
-        const ccpPath = path.resolve(__dirname, '..','..', '..', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com', 'connection-org1.json');
+        // const ccpPath = path.resolve(__dirname, '..','..', '..', 'test-network', 'organizations', 'peerOrganizations', 'org1.example.com', 'connection-org1.json');
         const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
 
         const caInfo = ccp.certificateAuthorities[caURL].url;
@@ -171,14 +184,14 @@ exports.registerUser = async (isManufacturer, isMiddleMen, isConsumer, userID , 
         console.log('1');
         const provider = wallet.getProviderRegistry().getProvider(adminIdentity.type);
         console.log('2');
-        console.log(provider);
+        // console.log(provider);
         const adminUser = await provider.getUserContext(adminIdentity, 'admin');
         console.log('3');
-        console.log(adminUser);
+        // console.log(adminUser);
 
 
 
-        const secret = await ca.register({ affiliation: 'org1.department1', enrollmentID: userID, role: 'client' }, adminUser);
+        const secret = await ca.register({ affiliation: affiliation, enrollmentID: userID, role: 'client' }, adminUser);
         console.log('4');
         console.log(secret);
 
@@ -220,14 +233,14 @@ exports.registerUser = async (isManufacturer, isMiddleMen, isConsumer, userID , 
    //testing end
 
         const enrollment = await ca.enroll({ enrollmentID: userID, enrollmentSecret: secret });
-        console.log(enrollment);
+        // console.log(enrollment);
         console.log('5');
         const x509Identity = {
             credentials: {
                 certificate: enrollment.certificate,
                 privateKey: enrollment.key.toBytes(),
             },
-            mspId: 'Org1MSP',
+            mspId: orgMSPID,
             type: 'X.509',
         };
         // await wallet.put('admin', x509Identity);
