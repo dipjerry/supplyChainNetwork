@@ -17,10 +17,10 @@ const router = require('./routes/index.js');
 
 async function main() {
 
-    // await network.enrollAdmin(true, false, false);
-    // await network.enrollAdmin(false,true,false);
-    // await network.enrollAdmin(false,false,true);
-    // await user.signup(true, false, false , {userType:'admin', address:'HQ', name:'supplychain management', email:'admin@gmail.com', password:'1234' , id:'admin' });
+    await network.enrollAdmin(true, false, false);
+    await network.enrollAdmin(false,true,false);
+    await network.enrollAdmin(false,false,true);
+    await user.signup(true, false, false , {userType:'admin', address:'HQ', name:'supplychain management', email:'admin@gmail.com', password:'1234' , id:'admin' });
 
     const app = express();
     app.use(morgan('combined'));
